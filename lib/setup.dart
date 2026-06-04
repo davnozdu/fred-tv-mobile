@@ -119,6 +119,18 @@ class _SetupState extends State<Setup> {
     super.dispose();
   }
 
+  // When the user confirms a text field with the on-screen keyboard
+  // (IME "next"/done), move focus straight to the Next button instead of
+  // leaving it stuck in the field. Big help for D-pad / TV remotes.
+  void onFieldSubmitted(Steps s) {
+    final valid = _formKeys[s]?.currentState?.isValid == true;
+    if (!valid) return;
+    setState(() => formValid = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) nextButtonFocusNode.requestFocus();
+    });
+  }
+
   Future<bool> selectFile() async {
     var path = (await FilePicker.platform.pickFiles())?.files.single.path;
     if (path == null) return false;
@@ -342,6 +354,7 @@ class _SetupState extends State<Setup> {
               ),
               elevation: 2,
               child: ListTile(
+                autofocus: selectedSourceType.index == i,
                 title: Text((SourceType.values[i]).label),
                 onTap: () {
                   setState(() {
@@ -384,6 +397,7 @@ class _SetupState extends State<Setup> {
             child: FormBuilderTextField(
               autocorrect: false,
               focusNode: focusNodes[Steps.name],
+              onSubmitted: (_) => onFieldSubmitted(Steps.name),
               decoration: InputDecoration(
                 labelText: "Name",
                 border: OutlineInputBorder(),
@@ -424,6 +438,7 @@ class _SetupState extends State<Setup> {
             child: FormBuilderTextField(
               autocorrect: false,
               focusNode: focusNodes[Steps.url],
+              onSubmitted: (_) => onFieldSubmitted(Steps.url),
               decoration: InputDecoration(
                 labelText: "URL",
                 border: OutlineInputBorder(),
@@ -452,6 +467,7 @@ class _SetupState extends State<Setup> {
             child: FormBuilderTextField(
               autocorrect: false,
               focusNode: focusNodes[Steps.username],
+              onSubmitted: (_) => onFieldSubmitted(Steps.username),
               decoration: InputDecoration(
                 labelText: "Username",
                 border: OutlineInputBorder(),
@@ -480,6 +496,7 @@ class _SetupState extends State<Setup> {
             child: FormBuilderTextField(
               autocorrect: false,
               focusNode: focusNodes[Steps.password],
+              onSubmitted: (_) => onFieldSubmitted(Steps.password),
               decoration: InputDecoration(
                 labelText: "Password",
                 border: OutlineInputBorder(),
