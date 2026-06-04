@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
+import 'package:open_tv/backend/updater.dart';
 import 'package:open_tv/home.dart';
 import 'package:open_tv/models/custom_shortcut.dart';
 import 'package:open_tv/models/device_detector.dart';
@@ -28,6 +29,11 @@ Future<void> main() async {
       isTV: isTV,
     ),
   );
+  if (Platform.isAndroid) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Updater.checkAndPrompt(MyApp.navigatorKey);
+    });
+  }
 }
 
 class MyApp extends StatelessWidget {
