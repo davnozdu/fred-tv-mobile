@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:open_tv/backend/epg.dart';
+import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/backend/utils.dart';
 import 'package:open_tv/models/channel.dart';
@@ -16,12 +18,14 @@ final nameRegexAlt = RegExp(r',([^,\n\r\t]*)$');
 final idRegex = RegExp(r'tvg-id="([^"]*)"');
 final logoRegex = RegExp(r'tvg-logo="([^"]*)"');
 final groupRegex = RegExp(r'group-title="([^"]*)"');
+final extGrpRegex = RegExp(r'#EXTGRP:(.*)', caseSensitive: false);
 final httpOriginRegex = RegExp(r'http-origin=(.+)');
 final httpReferrerRegex = RegExp(r'http-referrer=(.+)');
 final httpUserAgentRegex = RegExp(r'http-user-agent=(.+)');
 
 Future<void> processM3U(Source source, bool wipe, [String? path]) async {
   path ??= source.url;
+  final logoMap = await _getEpgLogoMap();
   List<ChannelPreserve>? preserve;
   var file = File(
     path!,
@@ -35,6 +39,7 @@ Future<void> processM3U(Source source, bool wipe, [String? path]) async {
   }
   String? lastLine;
   String? channelLine;
+  String? channelGroup;
   ChannelHttpHeaders? headers;
   var httpHeadersSet = false;
   await for (var line in file) {
@@ -46,14 +51,22 @@ Future<void> processM3U(Source source, bool wipe, [String? path]) async {
         commitChannel(
           channelLine,
           lastLine,
+          channelGroup,
           httpHeadersSet ? headers : null,
+          logoMap,
           statements,
         );
       }
       channelLine = line;
       lastLine = null;
+      channelGroup = null;
       httpHeadersSet = false;
       headers = null;
+    } else if (lineUpper.startsWith("#EXTGRP")) {
+      final group = extGrpRegex.firstMatch(line)?[1]?.trim();
+      if (group != null && group.isNotEmpty) {
+        channelGroup = group;
+      }
     } else if (lineUpper.startsWith("#EXTVLCOPT")) {
       headers ??= ChannelHttpHeaders();
       if (setChannelHeaders(line, headers)) {
@@ -66,7 +79,7 @@ Future<void> processM3U(Source source, bool wipe, [String? path]) async {
     }
   }
   if (channelLine != null && lastLine != null && lastLine.trim().isNotEmpty) {
-    commitChannel(channelLine, lastLine, headers, statements);
+    commitChannel(channelLine, lastLine, channelGroup, headers, logoMap, statements);
   }
   statements.add(Sql.updateGroups());
   if (preserve != null) {
@@ -78,11 +91,13 @@ Future<void> processM3U(Source source, bool wipe, [String? path]) async {
 void commitChannel(
   String l1,
   String last,
+  String? extGroup,
   ChannelHttpHeaders? headers,
+  Map<String, String>? logoMap,
   List<Future<void> Function(SqliteWriteContext, Map<String, String>)>
   statements,
 ) {
-  var channel = getChannelFromLines(l1, last);
+  var channel = getChannelFromLines(l1, last, extGroup, logoMap);
   if (channel == null) return;
   statements.add(Sql.insertChannel(channel));
   if (headers != null) {
@@ -97,22 +112,51 @@ MediaType getMediaType(String url) {
   return MediaType.livestream;
 }
 
-Channel? getChannelFromLines(String l1, String last) {
+Channel? getChannelFromLines(
+  String l1,
+  String last, [
+  String? extGroup,
+  Map<String, String>? logoMap,
+]) {
   var url = last.trim();
   if (url.isEmpty) return null;
 
   var name = getName(l1)?.trim();
   if (name == null || name.isEmpty) return null;
 
+  var image = logoRegex.firstMatch(l1)?[1]?.trim();
+  if ((image == null || image.isEmpty) && logoMap != null) {
+    image = logoMap[normalizeChannelName(name)];
+  }
+
+  var group = groupRegex.firstMatch(l1)?[1]?.trim();
+  if (group == null || group.isEmpty) {
+    group = extGroup;
+  }
+
   return Channel(
     name: name,
-    group: groupRegex.firstMatch(l1)?[1]?.trim(),
-    image: logoRegex.firstMatch(l1)?[1]?.trim(),
+    group: group,
+    image: image,
     favorite: false,
     mediaType: getMediaType(url),
     sourceId: -1,
     url: url,
   );
+}
+
+/// Builds the EPG logo lookup based on user settings.
+/// Returns null when disabled or unavailable so import never fails because of EPG.
+Future<Map<String, String>?> _getEpgLogoMap() async {
+  try {
+    final settings = await SettingsService.getSettings();
+    if (!settings.fillLogosFromEpg) return null;
+    final url = settings.epgUrl.trim();
+    if (url.isEmpty) return null;
+    return await fetchEpgLogos(url);
+  } catch (_) {
+    return null;
+  }
 }
 
 String? getName(String l1) {

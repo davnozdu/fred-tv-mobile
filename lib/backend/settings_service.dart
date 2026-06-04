@@ -13,6 +13,8 @@ const showSeries = "showSeries";
 const lastSeenVersion = "lastSeenVersion";
 const forceTvMode = "forceTVMode";
 const lowLatencyProp = "streamCaching";
+const fillLogosFromEpgProp = "fillLogosFromEpg";
+const epgUrlProp = "epgUrl";
 
 class SettingsService {
   static Future<Settings> getSettings() async {
@@ -25,6 +27,8 @@ class SettingsService {
     var series = settingsMap[showSeries];
     var forceTV = settingsMap[forceTvMode];
     var lowLatency = settingsMap[lowLatencyProp];
+    var fillLogos = settingsMap[fillLogosFromEpgProp];
+    var epg = settingsMap[epgUrlProp];
     if (view != null) {
       settings.defaultView = ViewType.values[int.parse(view)];
     }
@@ -46,6 +50,12 @@ class SettingsService {
     if (lowLatency != null) {
       settings.lowLatency = int.parse(lowLatency) == 1;
     }
+    if (fillLogos != null) {
+      settings.fillLogosFromEpg = int.parse(fillLogos) == 1;
+    }
+    if (epg != null) {
+      settings.epgUrl = epg;
+    }
     return settings;
   }
 
@@ -59,6 +69,9 @@ class SettingsService {
     settingsMap[showSeries] = (settings.showSeries ? 1 : 0).toString();
     settingsMap[forceTvMode] = (settings.forceTVMode ? 1 : 0).toString();
     settingsMap[lowLatencyProp] = (settings.lowLatency ? 1 : 0).toString();
+    settingsMap[fillLogosFromEpgProp] = (settings.fillLogosFromEpg ? 1 : 0)
+        .toString();
+    settingsMap[epgUrlProp] = settings.epgUrl;
     await Sql.updateSettings(settingsMap);
   }
 

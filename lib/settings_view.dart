@@ -208,6 +208,39 @@ class _SettingsState extends State<SettingsView> {
     );
   }
 
+  Future<void> _showEpgUrlDialog() async {
+    final controller = TextEditingController(text: settings.epgUrl);
+    await showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("EPG URL"),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            hintText: "http://epg.one/epg.xml",
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => settings.epgUrl = controller.text.trim());
+              updateSettings();
+              Navigator.of(ctx).pop();
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -349,6 +382,34 @@ class _SettingsState extends State<SettingsView> {
                         ),
                       ],
                     ),
+                  ),
+                  ListTile(
+                    title: const Text("Fill logos from EPG"),
+                    subtitle: const Text(
+                      "Use an EPG (XMLTV) source to fill missing channel logos",
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value: settings.fillLogosFromEpg,
+                          onChanged: (bool value) {
+                            setState(() {
+                              settings.fillLogosFromEpg = value;
+                            });
+                            updateSettings();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  ListTile(
+                    enabled: settings.fillLogosFromEpg,
+                    title: const Text("EPG URL"),
+                    subtitle: Text(
+                      settings.epgUrl.isEmpty ? "Not set" : settings.epgUrl,
+                    ),
+                    onTap: () async => await _showEpgUrlDialog(),
                   ),
                   const Divider(),
                   Row(

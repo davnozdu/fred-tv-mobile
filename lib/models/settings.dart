@@ -9,6 +9,8 @@ class Settings {
   bool showMovies;
   bool showSeries;
   bool forceTVMode;
+  bool fillLogosFromEpg;
+  String epgUrl;
   Settings({
     this.defaultView = ViewType.all,
     this.refreshOnStart = false,
@@ -17,6 +19,8 @@ class Settings {
     this.showMovies = true,
     this.showSeries = true,
     this.forceTVMode = false,
+    this.fillLogosFromEpg = true,
+    this.epgUrl = 'http://epg.one/epg.xml',
   });
 
   List<MediaType> getMediaTypes() {
