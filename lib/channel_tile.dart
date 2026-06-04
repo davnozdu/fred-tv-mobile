@@ -62,17 +62,81 @@ class _ChannelTileState extends State<ChannelTile> {
   Future<void> favorite() async {
     if (widget.channel.mediaType == MediaType.group) return;
     await Error.tryAsyncNoLoading(() async {
-      await Sql.favoriteChannel(widget.channel.id!, !widget.channel.favorite);
+      final newValue = !widget.channel.favorite;
+      await Sql.favoriteChannel(widget.channel.id!, newValue);
       setState(() {
-        widget.channel.favorite = !widget.channel.favorite;
+        widget.channel.favorite = newValue;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Added to favorites"),
-          duration: Duration(milliseconds: 500),
+        SnackBar(
+          content: Text(
+            newValue ? "Added to favorites" : "Removed from favorites",
+          ),
+          duration: const Duration(milliseconds: 500),
         ),
       );
     }, context);
+  }
+
+  Future<void> showContextMenu() async {
+    if (widget.channel.mediaType == MediaType.group) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black.withValues(alpha: 0.92),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    widget.channel.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              ListTile(
+                autofocus: true,
+                leading: const Icon(Icons.play_arrow, color: Colors.white),
+                title: const Text(
+                  "Play",
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  play();
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  widget.channel.favorite ? Icons.star : Icons.star_border,
+                  color: Colors.amber,
+                ),
+                title: Text(
+                  widget.channel.favorite
+                      ? "Remove from Favorites"
+                      : "Add to Favorites",
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  favorite();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> play() async {
@@ -121,7 +185,7 @@ class _ChannelTileState extends State<ChannelTile> {
       child: InkWell(
         focusNode: _focusNode,
         autofocus: widget.autofocus,
-        onLongPress: favorite,
+        onLongPress: showContextMenu,
         onTap: () async => await play(),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
