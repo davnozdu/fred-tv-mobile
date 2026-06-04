@@ -66,19 +66,23 @@ class Sql {
       var sourceId = int.parse(memory['sourceId']!);
       await tx.execute('''
       INSERT INTO groups (name, image, source_id, media_type)
-      SELECT group_name, image, ?, media_type
+      SELECT group_name, MAX(image), ?, MIN(media_type)
       FROM channels
-      WHERE source_id = ?
-      GROUP BY group_name;
-      ON CONFLICT(name, source_id)  
-      DO UPDATE SET
-          media_type = excluded.media_type;
+      WHERE source_id = ? AND group_name IS NOT NULL AND group_name != ''
+      GROUP BY group_name
+      ON CONFLICT(name, source_id)
+      DO UPDATE SET media_type = excluded.media_type
     ''', [sourceId, sourceId]);
       await tx.execute('''
       UPDATE channels
-      SET group_id = (SELECT id FROM groups WHERE groups.name = channels.group_name LIMIT 1);
-      WHERE source_id = ?;
-    ''');
+      SET group_id = (
+        SELECT id FROM groups
+        WHERE groups.name = channels.group_name
+          AND groups.source_id = channels.source_id
+        LIMIT 1
+      )
+      WHERE source_id = ?
+    ''', [sourceId]);
     };
   }
 

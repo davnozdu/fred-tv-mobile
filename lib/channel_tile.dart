@@ -17,12 +17,14 @@ class ChannelTile extends StatefulWidget {
   final BuildContext parentContext;
   final Function(Node node) setNode;
   final VoidCallback? onFocusNavbar;
+  final bool autofocus;
   const ChannelTile({
     super.key,
     required this.channel,
     required this.setNode,
     required this.parentContext,
     this.onFocusNavbar,
+    this.autofocus = false,
   });
 
   @override
@@ -118,6 +120,7 @@ class _ChannelTileState extends State<ChannelTile> {
       color: Theme.of(context).colorScheme.surfaceContainer,
       child: InkWell(
         focusNode: _focusNode,
+        autofocus: widget.autofocus,
         onLongPress: favorite,
         onTap: () async => await play(),
         child: Row(

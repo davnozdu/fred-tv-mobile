@@ -278,6 +278,7 @@ class _HomeState extends State<Home> {
                           channel: channel,
                           parentContext: context,
                           setNode: setNode,
+                          autofocus: index == 0 && !widget.hasTouchScreen,
                         );
                       }, childCount: channels.length),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
