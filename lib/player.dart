@@ -51,6 +51,11 @@ class _PlayerState extends State<Player> {
   void initState() {
     super.initState();
     mk.MediaKit.ensureInitialized();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     initAsync();
   }
 
@@ -84,13 +89,23 @@ class _PlayerState extends State<Player> {
   }
 
   Future<void> setMpvOptions() async {
-    if (player.platform is mk.NativePlayer) {
-      final nativePlayer = player.platform as mk.NativePlayer;
-      if (widget.channel.mediaType == MediaType.livestream) {
-        if (widget.settings.lowLatency) {
-          await nativePlayer.setProperty('profile', 'low-latency');
-        }
-      }
+    if (player.platform is! mk.NativePlayer) return;
+    final native = player.platform as mk.NativePlayer;
+    // Аппаратное декодирование (HD/4K без рывков на ТВ-боксах),
+    // auto-safe откатывается на софт, если HW недоступен.
+    await native.setProperty('hwdec', 'auto-safe');
+    if (widget.channel.mediaType == MediaType.livestream &&
+        widget.settings.lowLatency) {
+      // Минимальная задержка ценой буфера.
+      await native.setProperty('profile', 'low-latency');
+    } else {
+      // Буферизация для стабильности (особенно HD).
+      final secs = widget.settings.bufferSeconds;
+      await native.setProperty('cache', 'yes');
+      await native.setProperty('cache-secs', '$secs');
+      await native.setProperty('demuxer-readahead-secs', '$secs');
+      await native.setProperty('demuxer-max-bytes', '64MiB');
+      await native.setProperty('demuxer-max-back-bytes', '32MiB');
     }
   }
 
@@ -124,7 +139,6 @@ class _PlayerState extends State<Player> {
                 : null,
           ),
         );
-        await key.currentState?.enterFullscreen();
         return;
       } catch (e) {
         debugPrint("Playback failed: $e. Retrying in 2s...");
@@ -486,9 +500,6 @@ class _PlayerState extends State<Player> {
     exiting = true;
     if (widget.channel.mediaType == MediaType.movie) {
       Sql.setPosition(widget.channel.id!, player.state.position.inSeconds);
-    }
-    if (key.currentState!.isFullscreen()) {
-      await key.currentState!.exitFullscreen();
     }
     Navigator.of(context).pop();
     SystemChrome.setPreferredOrientations([

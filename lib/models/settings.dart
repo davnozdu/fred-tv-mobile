@@ -11,6 +11,7 @@ class Settings {
   bool forceTVMode;
   bool fillLogosFromEpg;
   String epgUrl;
+  int bufferSeconds;
   Settings({
     this.defaultView = ViewType.all,
     this.refreshOnStart = false,
@@ -21,6 +22,7 @@ class Settings {
     this.forceTVMode = false,
     this.fillLogosFromEpg = true,
     this.epgUrl = 'http://epg.one/epg.xml',
+    this.bufferSeconds = 30,
   });
 
   List<MediaType> getMediaTypes() {

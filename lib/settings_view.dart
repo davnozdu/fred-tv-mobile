@@ -208,6 +208,27 @@ class _SettingsState extends State<SettingsView> {
     );
   }
 
+  Future<void> _showBufferDialog(BuildContext context) async {
+    const options = [5, 15, 30, 60];
+    showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (BuildContext context) {
+        return SelectDialog(
+          title: "Buffer size",
+          data: options.map((s) => IdData(id: s, data: "$s seconds")).toList(),
+          action: (seconds) {
+            setState(() {
+              settings.bufferSeconds = seconds;
+              updateSettings();
+            });
+            Navigator.of(context).pop();
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _showEpgUrlDialog() async {
     final controller = TextEditingController(text: settings.epgUrl);
     await showDialog(
@@ -300,6 +321,9 @@ class _SettingsState extends State<SettingsView> {
                   ),
                   ListTile(
                     title: const Text("Low latency livestreams"),
+                    subtitle: const Text(
+                      "Minimal delay, smaller buffer (may stutter on weak networks)",
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -314,6 +338,14 @@ class _SettingsState extends State<SettingsView> {
                         ),
                       ],
                     ),
+                  ),
+                  ListTile(
+                    enabled: !settings.lowLatency,
+                    title: const Text("Buffer size"),
+                    subtitle: Text(
+                      "${settings.bufferSeconds} seconds — larger = more stable HD",
+                    ),
+                    onTap: () async => await _showBufferDialog(context),
                   ),
                   ListTile(
                     title: const Text("Refresh sources on start"),
