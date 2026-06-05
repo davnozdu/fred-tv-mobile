@@ -199,6 +199,20 @@ class Sql {
     return results.map(rowToChannel).toList();
   }
 
+  // All livestream channels for the given sources (for the TV guide grid).
+  static Future<List<Channel>> getLivestreams(List<int> sourceIds) async {
+    if (sourceIds.isEmpty) return [];
+    var db = await DbFactory.db;
+    var rows = await db.getAll('''
+        SELECT * FROM channels
+        WHERE source_id IN (${generatePlaceholders(sourceIds.length)})
+          AND media_type = ${MediaType.livestream.index}
+          AND url IS NOT NULL
+        ORDER BY id
+    ''', sourceIds);
+    return rows.map(rowToChannel).toList();
+  }
+
   static Channel rowToChannel(Row row) {
     return Channel(
       id: row.columnAt(0),

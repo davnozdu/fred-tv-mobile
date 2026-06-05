@@ -102,6 +102,100 @@ Future<Map<String, String>> fetchEpgLogos(String epgUrl) async {
   }
 }
 
+// Cache for the full guide (all channels' programmes in a time window).
+Map<String, List<EpgProgram>>? _allPrograms;
+DateTime? _allProgramsAt;
+
+/// Returns programmes for every channel (normalized name -> programmes in a
+/// window around now), for the TV guide grid. Parsed in a background isolate.
+Future<Map<String, List<EpgProgram>>> fetchAllPrograms(String epgUrl) async {
+  final url = epgUrl.trim();
+  if (url.isEmpty) return {};
+  if (_allPrograms != null &&
+      _allProgramsAt != null &&
+      DateTime.now().difference(_allProgramsAt!) < const Duration(minutes: 15)) {
+    return _allPrograms!;
+  }
+  final data = await compute(_parseAllPrograms, url);
+  final namesById = data['names'] as Map;
+  final progsById = data['progs'] as Map;
+  final result = <String, List<EpgProgram>>{};
+  progsById.forEach((id, list) {
+    final programs =
+        (list as List)
+            .map((m) => _programFromMap(Map<String, dynamic>.from(m as Map)))
+            .toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
+    for (final name in (namesById[id] as List? ?? const [])) {
+      result[name as String] = programs;
+    }
+  });
+  _allPrograms = result;
+  _allProgramsAt = DateTime.now();
+  return result;
+}
+
+// Isolate: parse all channels' programmes in [now-6h, now+30h].
+Future<Map<String, dynamic>> _parseAllPrograms(String epgUrl) async {
+  final client = http.Client();
+  try {
+    final response = await client.send(http.Request('GET', Uri.parse(epgUrl)));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download EPG: ${response.statusCode}');
+    }
+    Stream<List<int>> bytes = response.stream;
+    if (epgUrl.endsWith('.gz')) {
+      bytes = bytes.transform(gzip.decoder);
+    }
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final lower = nowMs - 6 * 3600 * 1000;
+    final upper = nowMs + 30 * 3600 * 1000;
+    final idNames = <String, List<String>>{};
+    final idProgs = <String, List<Map<String, dynamic>>>{};
+    final current = StringBuffer();
+    await for (final line in bytes
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())) {
+      current.writeln(line);
+      if (line.contains('</channel>')) {
+        final block = current.toString();
+        current.clear();
+        final id = _channelIdRegex.firstMatch(block)?.group(1);
+        if (id != null) {
+          final names = <String>[];
+          for (final dn in _displayNameRegex.allMatches(block)) {
+            final k = normalizeChannelName(
+              (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
+            );
+            if (k.isNotEmpty) names.add(k);
+          }
+          if (names.isNotEmpty) idNames[id] = names;
+        }
+      } else if (line.contains('</programme>')) {
+        final block = current.toString();
+        current.clear();
+        final ch = _progChannelRegex.firstMatch(block)?.group(1);
+        if (ch == null || !idNames.containsKey(ch)) continue;
+        final sm = _progStartRegex.firstMatch(block);
+        final em = _progStopRegex.firstMatch(block);
+        if (sm == null || em == null) continue;
+        final start = _parseXmltvTime(sm.group(1)!, sm.group(2));
+        final stop = _parseXmltvTime(em.group(1)!, em.group(2));
+        final sMs = start.millisecondsSinceEpoch;
+        final eMs = stop.millisecondsSinceEpoch;
+        if (eMs <= lower || sMs >= upper) continue;
+        final title = (_titleRegex.firstMatch(block)?.group(1) ?? '')
+            .replaceAll(_tagRegex, '')
+            .trim();
+        (idProgs[ch] ??= []).add({'s': sMs, 'e': eMs, 't': _unescapeXml(title)});
+      }
+    }
+    return {'names': idNames, 'progs': idProgs};
+  } finally {
+    client.close();
+  }
+}
+
 /// Refreshes the global "now playing" map (normalized name -> current title)
 /// from the logo EPG, in the background. Cached for 15 minutes.
 Future<void> refreshNowPlaying(String epgUrl) async {

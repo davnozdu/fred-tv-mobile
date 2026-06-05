@@ -6,6 +6,7 @@ import 'package:open_tv/models/home_manager.dart';
 import 'package:open_tv/models/view_type.dart';
 import 'package:open_tv/settings_view.dart';
 import 'package:open_tv/tv_categories.dart';
+import 'package:open_tv/tv_guide.dart';
 
 class TvHome extends StatelessWidget {
   const TvHome({super.key});
@@ -23,6 +24,12 @@ class TvHome extends StatelessWidget {
     Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (context) => const TvCategories()));
+  }
+
+  void _navGuide(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const TvGuide()));
   }
 
   void _navSettings(BuildContext context) {
@@ -50,6 +57,16 @@ class TvHome extends StatelessWidget {
                     end: Alignment.bottomRight,
                   ),
                   onTap: () => _navChannels(context),
+                ),
+                MenuTile(
+                  icon: Icons.grid_view,
+                  label: "Guide",
+                  color: const LinearGradient(
+                    colors: [Colors.indigo, Colors.deepPurple],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  onTap: () => _navGuide(context),
                 ),
                 MenuTile(
                   icon: Icons.star,

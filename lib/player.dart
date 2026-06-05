@@ -20,7 +20,15 @@ class _ControlAction {
 class Player extends StatefulWidget {
   final Channel channel;
   final Settings settings;
-  const Player({super.key, required this.channel, required this.settings});
+  // When set (and the channel is live), start playback in the archive at this
+  // moment instead of live — used when picking a past programme from the guide.
+  final DateTime? archiveStart;
+  const Player({
+    super.key,
+    required this.channel,
+    required this.settings,
+    this.archiveStart,
+  });
   @override
   State<StatefulWidget> createState() => _PlayerState();
 }
@@ -110,6 +118,23 @@ class _PlayerState extends State<Player> {
   }
 
   Future<void> _init() async {
+    // Start directly in archive when a past programme was picked from the guide.
+    if (_isLive && widget.archiveStart != null) {
+      final startEpoch =
+          widget.archiveStart!.toUtc().millisecondsSinceEpoch ~/ 1000;
+      final url = _timeshiftUrl(startEpoch);
+      if (url != null) {
+        _archiveMode = true;
+        _archiveStartEpoch = startEpoch;
+        _currentProgram = EpgProgram(
+          widget.archiveStart!,
+          widget.archiveStart!.add(const Duration(hours: 1)),
+          '',
+        );
+        await _setup(url, true);
+        return;
+      }
+    }
     await _setup(widget.channel.url!, _isLive);
     if (widget.channel.mediaType == MediaType.movie) {
       final secs = await Sql.getPosition(widget.channel.id!);
