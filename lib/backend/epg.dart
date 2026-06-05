@@ -11,6 +11,11 @@ import 'package:path_provider/path_provider.dart';
 /// on demand when opening the archive menu.
 const archiveEpgUrl = 'https://iptvx.one/epg/epg_lite.xml.gz';
 
+/// EPG/broadcast timezone (Moscow, no DST). Programme times are shown in this
+/// zone so they match the actual Russian TV schedule regardless of device tz.
+const epgDisplayOffset = Duration(hours: 3);
+DateTime epgLocal(DateTime utc) => utc.toUtc().add(epgDisplayOffset);
+
 final _channelBlockRegex = RegExp(
   r'<channel\b[^>]*>(.*?)</channel>',
   dotAll: true,

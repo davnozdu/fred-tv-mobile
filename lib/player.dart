@@ -328,7 +328,9 @@ class _PlayerState extends State<Player> {
     );
   }
 
-  String _stamp(DateTime d) {
+  // Formats a UTC programme time in the EPG (Moscow) timezone.
+  String _stamp(DateTime utc) {
+    final d = epgLocal(utc);
     String two(int v) => v.toString().padLeft(2, '0');
     return "${two(d.day)}.${two(d.month)} ${two(d.hour)}:${two(d.minute)}";
   }
@@ -353,8 +355,60 @@ class _PlayerState extends State<Player> {
       _toggleFavorite,
     ),
     _ControlAction(Icons.audiotrack, _openAudioModal),
+    _ControlAction(Icons.aspect_ratio, _cycleAspect),
     if (_isLive) _ControlAction(Icons.history, _openArchiveMenu),
   ];
+
+  int _aspectIdx = 0;
+
+  // Cycle aspect ratio: Auto -> 16:9 -> 4:3 -> Fill. Fixes anamorphic SD
+  // channels that otherwise render squished ("square").
+  void _cycleAspect() {
+    final c = _controller;
+    if (c == null) return;
+    _aspectIdx = (_aspectIdx + 1) % 4;
+    switch (_aspectIdx) {
+      case 1:
+        c.setOverriddenFit(BoxFit.contain);
+        c.setOverriddenAspectRatio(16 / 9);
+        break;
+      case 2:
+        c.setOverriddenFit(BoxFit.contain);
+        c.setOverriddenAspectRatio(4 / 3);
+        break;
+      case 3:
+        c.setOverriddenFit(BoxFit.fill);
+        c.setOverriddenAspectRatio(MediaQuery.of(context).size.aspectRatio);
+        break;
+      default: // 0 = Auto (video's natural aspect)
+        c.setOverriddenFit(BoxFit.contain);
+        c.setOverriddenAspectRatio(
+          c.videoPlayerController?.value.aspectRatio ?? 16 / 9,
+        );
+    }
+    _toast(_aspectLabel());
+    setState(() {});
+  }
+
+  String _aspectLabel() {
+    switch (_aspectIdx) {
+      case 1:
+        return "16:9";
+      case 2:
+        return "4:3";
+      case 3:
+        return "Fill";
+      default:
+        return "Auto";
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(milliseconds: 900)),
+    );
+  }
 
   void _togglePlay() {
     final c = _controller;
@@ -598,7 +652,7 @@ class _PlayerState extends State<Player> {
       final p = _currentProgram;
       final label = p == null
           ? "ARCHIVE"
-          : "ARCHIVE · ${_stamp(p.start.toLocal())}"
+          : "ARCHIVE · ${_stamp(p.start)}"
                 "${p.title.isEmpty ? '' : '  ${p.title}'}";
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -831,7 +885,7 @@ class _ArchiveSheetState extends State<_ArchiveSheet> {
         return ListTile(
           dense: true,
           leading: Text(
-            widget.stamp(p.start.toLocal()),
+            widget.stamp(p.start),
             style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           title: Text(

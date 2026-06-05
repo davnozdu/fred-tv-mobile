@@ -491,12 +491,13 @@ class _TvGuideState extends State<TvGuide> {
     var t = _windowStart;
     while (t.isBefore(_windowEnd)) {
       final left = t.difference(_windowStart).inMinutes * pxPerMin;
+      final msk = epgLocal(t.toUtc()); // show Moscow time (matches the EPG)
       marks.add(
         Positioned(
           left: left,
           top: 4,
           child: Text(
-            "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}",
+            "${msk.hour.toString().padLeft(2, '0')}:${msk.minute.toString().padLeft(2, '0')}",
             style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
         ),
