@@ -164,7 +164,7 @@ class _PlayerState extends State<Player> {
       controller = BetterPlayerController(
         BetterPlayerConfiguration(
           autoPlay: true,
-          fit: BoxFit.contain,
+          fit: BoxFit.fill, // default: stretch to fill the screen
           handleLifecycle: true,
           autoDispose: false,
           allowedScreenSleep: false,
@@ -368,23 +368,23 @@ class _PlayerState extends State<Player> {
     if (c == null) return;
     _aspectIdx = (_aspectIdx + 1) % 4;
     switch (_aspectIdx) {
-      case 1:
-        c.setOverriddenFit(BoxFit.contain);
-        c.setOverriddenAspectRatio(16 / 9);
-        break;
-      case 2:
-        c.setOverriddenFit(BoxFit.contain);
-        c.setOverriddenAspectRatio(4 / 3);
-        break;
-      case 3:
-        c.setOverriddenFit(BoxFit.fill);
-        c.setOverriddenAspectRatio(MediaQuery.of(context).size.aspectRatio);
-        break;
-      default: // 0 = Auto (video's natural aspect)
+      case 1: // Auto (video's natural aspect)
         c.setOverriddenFit(BoxFit.contain);
         c.setOverriddenAspectRatio(
           c.videoPlayerController?.value.aspectRatio ?? 16 / 9,
         );
+        break;
+      case 2: // 16:9
+        c.setOverriddenFit(BoxFit.contain);
+        c.setOverriddenAspectRatio(16 / 9);
+        break;
+      case 3: // 4:3
+        c.setOverriddenFit(BoxFit.contain);
+        c.setOverriddenAspectRatio(4 / 3);
+        break;
+      default: // 0 = Fill (stretch to screen) — the default
+        c.setOverriddenFit(BoxFit.fill);
+        c.setOverriddenAspectRatio(MediaQuery.of(context).size.aspectRatio);
     }
     _toast(_aspectLabel());
     setState(() {});
@@ -393,13 +393,13 @@ class _PlayerState extends State<Player> {
   String _aspectLabel() {
     switch (_aspectIdx) {
       case 1:
-        return "16:9";
-      case 2:
-        return "4:3";
-      case 3:
-        return "Fill";
-      default:
         return "Auto";
+      case 2:
+        return "16:9";
+      case 3:
+        return "4:3";
+      default:
+        return "Fill";
     }
   }
 
