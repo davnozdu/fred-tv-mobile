@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,46 +33,22 @@ class ChannelTile extends StatefulWidget {
 
 class _ChannelTileState extends State<ChannelTile> {
   final FocusNode _focusNode = FocusNode();
-  Timer? _longPressTimer;
-  bool _longPressFired = false;
-
-  bool _isSelectKey(LogicalKeyboardKey key) =>
-      key == LogicalKeyboardKey.select ||
-      key == LogicalKeyboardKey.enter ||
-      key == LogicalKeyboardKey.numpadEnter ||
-      key == LogicalKeyboardKey.gameButtonA;
 
   @override
   void initState() {
     super.initState();
+    // Only intercept Right (to reach the navbar). OK/Enter use the InkWell's
+    // default activation (fires on press) so a residual key-up after navigation
+    // can't accidentally trigger playback on a freshly focused tile.
     _focusNode.onKeyEvent = (node, event) {
-      final key = event.logicalKey;
-      if (event is KeyDownEvent && key == LogicalKeyboardKey.arrowRight) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.arrowRight) {
         if (!FocusScope.of(
           context,
         ).focusInDirection(TraversalDirection.right)) {
           widget.onFocusNavbar?.call();
         }
         return KeyEventResult.handled;
-      }
-      // OK button: tap = play, long hold = context menu (favorites/play).
-      // Remote OK arrives as a key, so a long press must be timed manually.
-      if (_isSelectKey(key)) {
-        if (event is KeyDownEvent) {
-          _longPressFired = false;
-          _longPressTimer?.cancel();
-          _longPressTimer = Timer(const Duration(milliseconds: 450), () {
-            _longPressFired = true;
-            showContextMenu();
-          });
-          return KeyEventResult.handled;
-        }
-        if (event is KeyUpEvent) {
-          _longPressTimer?.cancel();
-          if (!_longPressFired) play();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.handled; // swallow repeats while held
       }
       return KeyEventResult.ignored;
     };
@@ -85,7 +59,6 @@ class _ChannelTileState extends State<ChannelTile> {
 
   @override
   void dispose() {
-    _longPressTimer?.cancel();
     _focusNode.dispose();
     super.dispose();
   }
