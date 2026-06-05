@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:marquee/marquee.dart';
+import 'package:open_tv/backend/epg.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/backend/xtream.dart';
@@ -180,6 +182,36 @@ class _ChannelTileState extends State<ChannelTile> {
     }
   }
 
+  // Scrolling "now playing" line under the channel name (livestreams only).
+  Widget _nowPlayingLine() {
+    if (widget.channel.mediaType != MediaType.livestream) {
+      return const SizedBox.shrink();
+    }
+    return ValueListenableBuilder<Map<String, String>>(
+      valueListenable: nowPlaying,
+      builder: (_, map, __) {
+        final title = map[normalizeChannelName(widget.channel.name)];
+        if (title == null || title.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: SizedBox(
+            height: 16,
+            child: Marquee(
+              text: title,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              velocity: 28,
+              blankSpace: 50,
+              startPadding: 0,
+              pauseAfterRound: const Duration(milliseconds: 1200),
+              accelerationDuration: const Duration(milliseconds: 300),
+              decelerationDuration: const Duration(milliseconds: 300),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -219,20 +251,24 @@ class _ChannelTileState extends State<ChannelTile> {
               flex: 3,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    widget.channel.name,
-                    textAlign: TextAlign.left,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.fontSize!,
-                      fontWeight: FontWeight.w600,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      widget.channel.name,
+                      textAlign: TextAlign.left,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.fontSize!,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
+                    _nowPlayingLine(),
+                  ],
                 ),
               ),
             ),

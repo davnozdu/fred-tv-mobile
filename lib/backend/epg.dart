@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:open_tv/memory.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Default EPG with a week of past programmes (gzipped) — used for the archive
@@ -96,6 +97,92 @@ Future<Map<String, String>> fetchEpgLogos(String epgUrl) async {
     _cachedUrl = epgUrl;
     _cachedAt = DateTime.now();
     return logos;
+  } finally {
+    client.close();
+  }
+}
+
+/// Refreshes the global "now playing" map (normalized name -> current title)
+/// from the logo EPG, in the background. Cached for 15 minutes.
+Future<void> refreshNowPlaying(String epgUrl) async {
+  final url = epgUrl.trim();
+  if (url.isEmpty) return;
+  if (nowPlayingAt != null &&
+      nowPlaying.value.isNotEmpty &&
+      DateTime.now().difference(nowPlayingAt!) < const Duration(minutes: 15)) {
+    return;
+  }
+  try {
+    final map = await compute(_parseNowPlaying, url);
+    nowPlaying.value = map;
+    nowPlayingAt = DateTime.now();
+  } catch (_) {}
+}
+
+// Runs in a background isolate: returns normalized name -> currently airing title.
+Future<Map<String, String>> _parseNowPlaying(String epgUrl) async {
+  final client = http.Client();
+  try {
+    final response = await client.send(http.Request('GET', Uri.parse(epgUrl)));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download EPG: ${response.statusCode}');
+    }
+    Stream<List<int>> bytes = response.stream;
+    if (epgUrl.endsWith('.gz')) {
+      bytes = bytes.transform(gzip.decoder);
+    }
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final idToNames = <String, List<String>>{};
+    final idToTitle = <String, String>{};
+    final current = StringBuffer();
+    await for (final line in bytes
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())) {
+      current.writeln(line);
+      if (line.contains('</channel>')) {
+        final block = current.toString();
+        current.clear();
+        final id = _channelIdRegex.firstMatch(block)?.group(1);
+        if (id != null) {
+          final names = <String>[];
+          for (final dn in _displayNameRegex.allMatches(block)) {
+            final k = normalizeChannelName(
+              (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
+            );
+            if (k.isNotEmpty) names.add(k);
+          }
+          if (names.isNotEmpty) idToNames[id] = names;
+        }
+      } else if (line.contains('</programme>')) {
+        final block = current.toString();
+        current.clear();
+        final ch = _progChannelRegex.firstMatch(block)?.group(1);
+        if (ch == null ||
+            !idToNames.containsKey(ch) ||
+            idToTitle.containsKey(ch)) {
+          continue;
+        }
+        final sm = _progStartRegex.firstMatch(block);
+        final em = _progStopRegex.firstMatch(block);
+        if (sm == null || em == null) continue;
+        final start = _parseXmltvTime(sm.group(1)!, sm.group(2));
+        final stop = _parseXmltvTime(em.group(1)!, em.group(2));
+        if (start.millisecondsSinceEpoch <= nowMs &&
+            nowMs < stop.millisecondsSinceEpoch) {
+          final title = (_titleRegex.firstMatch(block)?.group(1) ?? '')
+              .replaceAll(_tagRegex, '')
+              .trim();
+          idToTitle[ch] = _unescapeXml(title);
+        }
+      }
+    }
+    final result = <String, String>{};
+    idToTitle.forEach((id, title) {
+      for (final name in idToNames[id] ?? const <String>[]) {
+        result[name] = title;
+      }
+    });
+    return result;
   } finally {
     client.close();
   }

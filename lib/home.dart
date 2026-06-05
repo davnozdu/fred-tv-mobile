@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:open_tv/backend/epg.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/backend/utils.dart';
@@ -62,6 +63,8 @@ class _HomeState extends State<Home> {
           .getMediaTypes();
     }
     await load();
+    // Fetch "now playing" for the catalog tiles in the background.
+    SettingsService.getSettings().then((s) => refreshNowPlaying(s.epgUrl));
     final String? version = await SettingsService.shouldShowWhatsNew();
     if (widget.firstLaunch && version != null) {
       await showWhatsNew(version);
