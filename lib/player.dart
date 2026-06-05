@@ -267,11 +267,6 @@ class _PlayerState extends State<Player> {
   }
 
   Future<void> _openArchiveMenu() async {
-    final epgUrl = widget.settings.epgUrl.trim();
-    if (epgUrl.isEmpty) {
-      _toast("EPG is not configured (Settings → EPG URL)");
-      return;
-    }
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -280,14 +275,15 @@ class _PlayerState extends State<Player> {
     );
     List<EpgProgram> programs = [];
     try {
-      programs = _programs ?? await fetchPrograms(epgUrl, widget.channel.name);
+      programs =
+          _programs ?? await fetchPrograms(archiveEpgUrl, widget.channel.name);
       _programs = programs;
     } catch (_) {}
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pop(); // close loading
 
     final now = DateTime.now().toUtc();
-    final from = now.subtract(const Duration(days: 3));
+    final from = now.subtract(const Duration(days: 7));
     final past =
         programs
             .where((p) => p.start.isAfter(from) && p.start.isBefore(now))

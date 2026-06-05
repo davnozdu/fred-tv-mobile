@@ -1,6 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
+
+/// Default EPG with a week of past programmes (gzipped) — used for the archive
+/// list. Logos stay on epg.one (better name coverage); this one is only pulled
+/// on demand when opening the archive menu.
+const archiveEpgUrl = 'https://iptvx.one/epg/epg_lite.xml.gz';
 
 final _channelBlockRegex = RegExp(
   r'<channel\b[^>]*>(.*?)</channel>',
@@ -20,6 +26,35 @@ final _nonAlphaNumRegex = RegExp(r'[^0-9a-zа-яё]');
 String normalizeChannelName(String name) {
   final lower = name.toLowerCase().replaceAll('&amp;', '&');
   return lower.replaceAll(_nonAlphaNumRegex, '');
+}
+
+const _qualTokens = {
+  'hd', 'uhd', 'fhd', '4k', '2k', 'sd', 'hevc', 'h265', 'h264',
+  'fps', 'orig', 'original', 'backup', 'raw', '50', '60',
+};
+const _countryTokens = {
+  'uk', 'us', 'usa', 'fr', 'de', 'nl', 'pl', 'ua', 'ru', 'it', 'es', 'tr',
+  'ge', 'az', 'by', 'kz', 'am', 'il', 'uz', 'tj', 'md', 'ro', 'pt', 'gb',
+  'at', 'ch', 'be', 'se', 'no', 'fi', 'dk', 'cz', 'sk', 'hu', 'gr', 'rs',
+  'hr', 'bg', 'ee', 'lv', 'lt',
+};
+final _parensRegex = RegExp(r'\([^)]*\)');
+final _shiftRegex = RegExp(r'\+\d+');
+final _splitRegex = RegExp(r'[^0-9a-zа-яё]+');
+
+/// Looser normalization for matching against EPGs that lack quality/region
+/// display-name variants: strips HD/UHD/4K/+N/(region)/country tokens.
+String normalizeChannelNameLoose(String name) {
+  var s = name.toLowerCase().replaceAll('&amp;', '&');
+  s = s.replaceAll(_parensRegex, '').replaceAll(_shiftRegex, '');
+  final out = <String>[];
+  for (final t in s.split(_splitRegex)) {
+    if (t.isEmpty || _qualTokens.contains(t) || _countryTokens.contains(t)) {
+      continue;
+    }
+    out.add(t);
+  }
+  return out.join();
 }
 
 // Simple in-memory cache so refreshing several sources in a row doesn't
@@ -88,7 +123,7 @@ Future<List<EpgProgram>> fetchPrograms(
   String epgUrl,
   String channelName,
 ) async {
-  final target = normalizeChannelName(channelName);
+  final target = normalizeChannelNameLoose(channelName);
   if (target.isEmpty) return [];
   final cacheKey = "$epgUrl|$target";
   final cachedAt = _programCacheAt[cacheKey];
@@ -103,10 +138,14 @@ Future<List<EpgProgram>> fetchPrograms(
     if (response.statusCode != 200) {
       throw Exception('Failed to download EPG: ${response.statusCode}');
     }
+    Stream<List<int>> bytes = response.stream;
+    if (epgUrl.endsWith('.gz')) {
+      bytes = bytes.transform(gzip.decoder);
+    }
     final ids = <String>{};
     final programs = <EpgProgram>[];
     final current = StringBuffer();
-    await for (final line in response.stream
+    await for (final line in bytes
         .transform(utf8.decoder)
         .transform(const LineSplitter())) {
       current.writeln(line);
@@ -116,7 +155,7 @@ Future<List<EpgProgram>> fetchPrograms(
         final id = _channelIdRegex.firstMatch(block)?.group(1);
         if (id != null) {
           for (final dn in _displayNameRegex.allMatches(block)) {
-            final key = normalizeChannelName(
+            final key = normalizeChannelNameLoose(
               (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
             );
             if (key == target) {
