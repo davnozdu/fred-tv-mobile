@@ -1,14 +1,12 @@
 import 'dart:async';
 
+import 'package:better_player_plus/better_player_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/id_data.dart';
 import 'package:open_tv/models/media_type.dart';
-import 'package:media_kit/media_kit.dart' as mk;
-import 'package:media_kit_video/media_kit_video.dart' as mkvideo;
 import 'package:open_tv/models/settings.dart';
 import 'package:open_tv/select_dialog.dart';
 
@@ -27,26 +25,126 @@ class Player extends StatefulWidget {
 }
 
 class _PlayerState extends State<Player> {
-  late mk.Player player = mk.Player();
-  late mkvideo.VideoController videoController = mkvideo.VideoController(
-    player,
-  );
-  late final GlobalKey<VideoState> key = GlobalKey<VideoState>();
+  BetterPlayerController? _controller;
+  BetterPlayerDataSource? _dataSource;
   bool exiting = false;
-  bool fill = false;
-  List<StreamSubscription> subscriptions = [];
 
   // Custom TV-friendly controls overlay
   bool _controlsVisible = false;
   int _focusedIndex = 2;
   bool _isPlaying = true;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
-  Timer? _hideTimer;
-  final FocusNode _focusNode = FocusNode();
   late bool _isFav = widget.channel.favorite;
+  Timer? _hideTimer;
+  Timer? _ticker;
+  final FocusNode _focusNode = FocusNode();
 
   bool get _isLive => widget.channel.mediaType == MediaType.livestream;
+
+  Duration get _position =>
+      _controller?.videoPlayerController?.value.position ?? Duration.zero;
+  Duration get _duration =>
+      _controller?.videoPlayerController?.value.duration ?? Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    _init();
+    // Refresh the progress bar/time while the panel is visible.
+    _ticker = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (mounted && _controlsVisible) setState(() {});
+    });
+  }
+
+  Future<void> _init() async {
+    final headers = await Sql.getChannelHeaders(widget.channel.id!);
+    final hdr = <String, String>{
+      if (headers?.referrer != null) "Referer": headers!.referrer!,
+      if (headers?.httpOrigin != null) "Origin": headers!.httpOrigin!,
+      if (headers?.userAgent != null) "User-Agent": headers!.userAgent!,
+    };
+    _dataSource = BetterPlayerDataSource(
+      BetterPlayerDataSourceType.network,
+      widget.channel.url!,
+      liveStream: _isLive,
+      headers: hdr.isNotEmpty ? hdr : null,
+      bufferingConfiguration: _bufferingConfig(),
+    );
+    final controller = BetterPlayerController(
+      BetterPlayerConfiguration(
+        autoPlay: true,
+        fit: BoxFit.contain,
+        handleLifecycle: true,
+        autoDispose: false,
+        allowedScreenSleep: false,
+        controlsConfiguration: const BetterPlayerControlsConfiguration(
+          showControls: false,
+        ),
+      ),
+    );
+    controller.addEventsListener(_onEvent);
+    await controller.setupDataSource(_dataSource!);
+    if (!mounted) {
+      controller.dispose(forceDispose: true);
+      return;
+    }
+    if (widget.channel.mediaType == MediaType.movie) {
+      final secs = await Sql.getPosition(widget.channel.id!);
+      if (secs != null && secs > 0) {
+        await controller.seekTo(Duration(seconds: secs));
+      }
+    }
+    setState(() => _controller = controller);
+  }
+
+  BetterPlayerBufferingConfiguration _bufferingConfig() {
+    if (widget.settings.lowLatency && _isLive) {
+      return const BetterPlayerBufferingConfiguration(
+        minBufferMs: 5000,
+        maxBufferMs: 15000,
+        bufferForPlaybackMs: 1000,
+        bufferForPlaybackAfterRebufferMs: 2000,
+      );
+    }
+    final ms = widget.settings.bufferSeconds * 1000;
+    return BetterPlayerBufferingConfiguration(
+      minBufferMs: ms,
+      maxBufferMs: (ms * 2).clamp(30000, 600000),
+      bufferForPlaybackMs: 2500,
+      bufferForPlaybackAfterRebufferMs: 5000,
+    );
+  }
+
+  void _onEvent(BetterPlayerEvent event) {
+    switch (event.betterPlayerEventType) {
+      case BetterPlayerEventType.play:
+        if (mounted) setState(() => _isPlaying = true);
+        break;
+      case BetterPlayerEventType.pause:
+        if (mounted) setState(() => _isPlaying = false);
+        break;
+      case BetterPlayerEventType.finished:
+      case BetterPlayerEventType.exception:
+        _onDisconnect();
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Live streams should reconnect automatically on error/drop.
+  Future<void> _onDisconnect() async {
+    if (!mounted || exiting || !_isLive || _dataSource == null) return;
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted || exiting) return;
+    try {
+      await _controller?.setupDataSource(_dataSource!);
+    } catch (_) {}
+  }
 
   Future<void> _toggleFavorite() async {
     final value = !_isFav;
@@ -55,173 +153,12 @@ class _PlayerState extends State<Player> {
     if (mounted) setState(() => _isFav = value);
   }
 
-  @override
-  void initState() {
-    super.initState();
-    mk.MediaKit.ensureInitialized();
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-    initAsync();
-  }
-
-  Future<void> initAsync() async {
-    player.setPlaylistMode(mk.PlaylistMode.none);
-    await setMpvOptions();
-    final seconds = widget.channel.mediaType == MediaType.movie
-        ? await Sql.getPosition(widget.channel.id!)
-        : null;
-    await _startPlayback(seconds != null ? Duration(seconds: seconds) : null);
-    subscriptions.add(
-      player.stream.completed.listen((completed) {
-        if (completed) onDisconnect();
-      }),
-    );
-    subscriptions.add(
-      player.stream.playing.listen((playing) {
-        if (mounted) setState(() => _isPlaying = playing);
-      }),
-    );
-    subscriptions.add(
-      player.stream.position.listen((position) {
-        _position = position;
-        // Перерисовываем только когда панель видна — не дёргаем UI при просмотре.
-        if (mounted && _controlsVisible) setState(() {});
-      }),
-    );
-    subscriptions.add(
-      player.stream.duration.listen((duration) {
-        if (mounted) setState(() => _duration = duration);
-      }),
-    );
-  }
-
-  Future<void> setMpvOptions() async {
-    if (player.platform is! mk.NativePlayer) return;
-    final native = player.platform as mk.NativePlayer;
-    // Форсируем аппаратное декодирование на Android (HD/4K без потери кадров).
-    await native.setProperty('hwdec', 'mediacodec-copy');
-    if (widget.channel.mediaType == MediaType.livestream &&
-        widget.settings.lowLatency) {
-      // Минимальная задержка ценой буфера.
-      await native.setProperty('profile', 'low-latency');
-    } else {
-      // Буферизация для стабильности (особенно HD).
-      final secs = widget.settings.bufferSeconds;
-      await native.setProperty('cache', 'yes');
-      await native.setProperty('cache-secs', '$secs');
-      await native.setProperty('demuxer-readahead-secs', '$secs');
-      await native.setProperty('demuxer-max-bytes', '64MiB');
-      await native.setProperty('demuxer-max-back-bytes', '32MiB');
-    }
-  }
-
-  void onDisconnect() async {
-    if (!mounted || exiting) return;
-    if (widget.channel.mediaType == MediaType.livestream) {
-      debugPrint("Live stream dropped/error. Attempting to reconnect...");
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted || exiting) return;
-      await _startPlayback(null);
-    }
-  }
-
-  Future<void> _startPlayback(Duration? startPosition) async {
-    while (true) {
-      if (!mounted || exiting) return;
-      try {
-        final headers = await Sql.getChannelHeaders(widget.channel.id!);
-        await player.open(
-          mk.Media(
-            widget.channel.url!,
-            start: startPosition,
-            httpHeaders: headers != null
-                ? {
-                    if (headers.referrer != null) "Referer": headers.referrer!,
-                    if (headers.httpOrigin != null)
-                      "Origin": headers.httpOrigin!,
-                    if (headers.userAgent != null)
-                      "User-Agent": headers.userAgent!,
-                  }
-                : null,
-          ),
-        );
-        return;
-      } catch (e) {
-        debugPrint("Playback failed: $e. Retrying in 2s...");
-        await Future.delayed(const Duration(seconds: 2));
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _hideTimer?.cancel();
-    _focusNode.dispose();
-    for (final s in subscriptions) s.cancel();
-    player.dispose();
-    super.dispose();
-  }
-
-  Future<void> openSubtitlesModal() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => SelectDialog(
-        title: "Select subtitles",
-        action: (id) async {
-          player.setSubtitleTrack(player.state.tracks.subtitle[id]);
-          Navigator.of(context).pop();
-        },
-        data: player.state.tracks.subtitle
-            .asMap()
-            .entries
-            .map(
-              (entry) => IdData(
-                id: entry.key,
-                data: entry.value.language != null
-                    ? "${entry.value.language} - ${entry.value.id}"
-                    : entry.value.id,
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
-  Future<void> openAudioModal() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => SelectDialog(
-        title: "Select audio",
-        action: (id) async {
-          player.setAudioTrack(player.state.tracks.audio[id]);
-          Navigator.of(context).pop();
-        },
-        data: player.state.tracks.audio
-            .asMap()
-            .entries
-            .map(
-              (entry) => IdData(
-                id: entry.key,
-                data:
-                    entry.value.title ?? entry.value.language ?? entry.value.id,
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
   List<_ControlAction> get _controls => [
     _ControlAction(Icons.replay_30, () => _seekRelative(-30)),
     _ControlAction(Icons.replay_5, () => _seekRelative(-5)),
     _ControlAction(
       _isPlaying ? Icons.pause : Icons.play_arrow,
-      () => player.playOrPause(),
+      _togglePlay,
     ),
     _ControlAction(Icons.forward_5, () => _seekRelative(5)),
     _ControlAction(Icons.forward_30, () => _seekRelative(30)),
@@ -229,16 +166,53 @@ class _PlayerState extends State<Player> {
       _isFav ? Icons.favorite : Icons.favorite_border,
       _toggleFavorite,
     ),
-    _ControlAction(Icons.audiotrack, openAudioModal),
-    _ControlAction(Icons.subtitles, openSubtitlesModal),
-    _ControlAction(Icons.aspect_ratio, toggleZoom),
+    _ControlAction(Icons.audiotrack, _openAudioModal),
   ];
 
+  void _togglePlay() {
+    final c = _controller;
+    if (c == null) return;
+    if (c.isPlaying() ?? false) {
+      c.pause();
+    } else {
+      c.play();
+    }
+  }
+
   void _seekRelative(int seconds) {
+    final c = _controller;
+    if (c == null) return;
     var target = _position + Duration(seconds: seconds);
     if (target < Duration.zero) target = Duration.zero;
-    if (_duration > Duration.zero && target > _duration) target = _duration;
-    player.seek(target);
+    final dur = _duration;
+    if (dur > Duration.zero && target > dur) target = dur;
+    c.seekTo(target);
+  }
+
+  Future<void> _openAudioModal() async {
+    final tracks = _controller?.betterPlayerAsmsAudioTracks ?? [];
+    if (tracks.isEmpty) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => SelectDialog(
+        title: "Select audio",
+        action: (id) {
+          _controller?.setAudioTrack(tracks[id]);
+          Navigator.of(ctx).pop();
+        },
+        data: tracks
+            .asMap()
+            .entries
+            .map(
+              (e) => IdData(
+                id: e.key,
+                data: e.value.label ?? e.value.language ?? "Audio ${e.key + 1}",
+              ),
+            )
+            .toList(),
+      ),
+    );
   }
 
   void _showControls() {
@@ -278,12 +252,16 @@ class _PlayerState extends State<Player> {
       return KeyEventResult.ignored;
     }
     if (k == LogicalKeyboardKey.arrowLeft) {
-      setState(() => _focusedIndex = (_focusedIndex - 1).clamp(0, controls.length - 1));
+      setState(
+        () => _focusedIndex = (_focusedIndex - 1).clamp(0, controls.length - 1),
+      );
       _resetHideTimer();
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowRight) {
-      setState(() => _focusedIndex = (_focusedIndex + 1).clamp(0, controls.length - 1));
+      setState(
+        () => _focusedIndex = (_focusedIndex + 1).clamp(0, controls.length - 1),
+      );
       _resetHideTimer();
       return KeyEventResult.handled;
     }
@@ -325,12 +303,13 @@ class _PlayerState extends State<Player> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Video(
-                  key: key,
-                  controller: videoController,
-                  controls: NoVideoControls,
-                  onExitFullscreen: () async => onExit(),
-                ),
+                Container(color: Colors.black),
+                if (_controller != null)
+                  BetterPlayer(controller: _controller!)
+                else
+                  const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
                 _buildOverlay(context),
               ],
             ),
@@ -348,7 +327,6 @@ class _PlayerState extends State<Player> {
         duration: const Duration(milliseconds: 200),
         child: Stack(
           children: [
-            // Top bar: back + channel name
             Positioned(
               top: 0,
               left: 0,
@@ -391,7 +369,6 @@ class _PlayerState extends State<Player> {
                 ),
               ),
             ),
-            // Bottom bar: progress + control buttons
             Positioned(
               bottom: 0,
               left: 0,
@@ -436,10 +413,7 @@ class _PlayerState extends State<Player> {
           SizedBox(width: 6),
           Text(
             "LIVE",
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ],
       );
@@ -511,8 +485,13 @@ class _PlayerState extends State<Player> {
   void onExit() async {
     if (exiting) return;
     exiting = true;
-    if (widget.channel.mediaType == MediaType.movie) {
-      Sql.setPosition(widget.channel.id!, player.state.position.inSeconds);
+    final c = _controller;
+    if (widget.channel.mediaType == MediaType.movie &&
+        c?.videoPlayerController != null) {
+      Sql.setPosition(
+        widget.channel.id!,
+        c!.videoPlayerController!.value.position.inSeconds,
+      );
     }
     Navigator.of(context).pop();
     SystemChrome.setPreferredOrientations([
@@ -524,14 +503,12 @@ class _PlayerState extends State<Player> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
-  void toggleZoom() {
-    final videoAspectRatio = player.state.width! / player.state.height!;
-    final deviceAspectRatio = MediaQuery.of(context).size.aspectRatio;
-    key.currentState!.update(
-      aspectRatio: fill ? videoAspectRatio : deviceAspectRatio,
-    );
-    setState(() {
-      fill = !fill;
-    });
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _ticker?.cancel();
+    _focusNode.dispose();
+    _controller?.dispose(forceDispose: true);
+    super.dispose();
   }
 }
