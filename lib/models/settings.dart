@@ -22,7 +22,7 @@ class Settings {
     this.forceTVMode = false,
     this.fillLogosFromEpg = true,
     this.epgUrl = 'http://epg.one/epg.xml',
-    this.bufferSeconds = 30,
+    this.bufferSeconds = 0, // 0 = Auto (adaptive buffer)
   });
 
   List<MediaType> getMediaTypes() {

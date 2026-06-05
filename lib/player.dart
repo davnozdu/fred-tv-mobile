@@ -36,6 +36,7 @@ class _PlayerState extends State<Player> {
   bool _isPlaying = true;
   bool _archiveMode = false;
   EpgProgram? _currentProgram;
+  int? _archiveStartEpoch;
   List<EpgProgram>? _programs;
   late bool _isFav = widget.channel.favorite;
   Timer? _hideTimer;
@@ -93,8 +94,18 @@ class _PlayerState extends State<Player> {
     final ds = _dataSource;
     if (exiting || ds == null) return;
     try {
+      // In archive, resume from the frozen point (not the program start).
+      if (_archiveMode && _archiveStartEpoch != null) {
+        final point = _archiveStartEpoch! + _position.inSeconds;
+        final url = _timeshiftUrl(point);
+        if (url != null) {
+          _archiveStartEpoch = point;
+          await _setup(url, true);
+          return;
+        }
+      }
       // Rebuild via _setup so the (possibly grown) auto-buffer applies.
-      await _setup(ds.url, ds.liveStream);
+      await _setup(ds.url, ds.liveStream ?? false);
     } catch (_) {}
   }
 
@@ -217,34 +228,41 @@ class _PlayerState extends State<Player> {
   // Archive (Flussonic catchup)
   // ---------------------------------------------------------------------------
 
-  // Flussonic catchup: play from the program's start and continue through the
-  // archive (timeshift). index-<from>-<dur> is ignored by this provider, but
-  // index.m3u8?utc=<start>&lutc=<now> works.
-  String? _archiveUrl(EpgProgram p) {
+  String? _streamRoot() {
     final base = widget.channel.url;
     if (base == null) return null;
     final q = base.indexOf('?');
     final clean = q >= 0 ? base.substring(0, q) : base;
     final idx = clean.lastIndexOf('/');
     if (idx <= 0) return null;
-    final root = clean.substring(0, idx); // .../<channelId>
-    final start = p.start.millisecondsSinceEpoch ~/ 1000;
+    return clean.substring(0, idx); // .../<channelId>
+  }
+
+  // Flussonic catchup: play from <utc> and continue through the archive
+  // (timeshift). index-<from>-<dur> is ignored by this provider, but
+  // index.m3u8?utc=<start>&lutc=<now> works.
+  String? _timeshiftUrl(int utc) {
+    final root = _streamRoot();
+    if (root == null) return null;
     final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
-    if (start >= now) return null;
-    return '$root/index.m3u8?utc=$start&lutc=$now';
+    if (utc >= now) return null;
+    return '$root/index.m3u8?utc=$utc&lutc=$now';
   }
 
   Future<void> _playLive() async {
     _archiveMode = false;
     _currentProgram = null;
+    _archiveStartEpoch = null;
     await _setup(widget.channel.url!, true);
   }
 
   Future<void> _playArchive(EpgProgram p) async {
-    final url = _archiveUrl(p);
+    final startEpoch = p.start.millisecondsSinceEpoch ~/ 1000;
+    final url = _timeshiftUrl(startEpoch);
     if (url == null) return;
     _archiveMode = true;
     _currentProgram = p;
+    _archiveStartEpoch = startEpoch;
     await _setup(url, true); // timeshift = live-style playlist
   }
 
