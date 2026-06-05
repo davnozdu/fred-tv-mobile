@@ -209,14 +209,18 @@ class _SettingsState extends State<SettingsView> {
   }
 
   Future<void> _showBufferDialog(BuildContext context) async {
-    const options = [5, 15, 30, 60];
+    const options = [0, 5, 15, 30, 60];
     showDialog(
       barrierDismissible: true,
       context: context,
       builder: (BuildContext context) {
         return SelectDialog(
           title: "Buffer size",
-          data: options.map((s) => IdData(id: s, data: "$s seconds")).toList(),
+          data: options
+              .map(
+                (s) => IdData(id: s, data: s == 0 ? "Auto" : "$s seconds"),
+              )
+              .toList(),
           action: (seconds) {
             setState(() {
               settings.bufferSeconds = seconds;
@@ -343,7 +347,9 @@ class _SettingsState extends State<SettingsView> {
                     enabled: !settings.lowLatency,
                     title: const Text("Buffer size"),
                     subtitle: Text(
-                      "${settings.bufferSeconds} seconds — larger = more stable HD",
+                      settings.bufferSeconds <= 0
+                          ? "Auto — grows when the stream stalls"
+                          : "${settings.bufferSeconds} seconds — larger = more stable HD",
                     ),
                     onTap: () async => await _showBufferDialog(context),
                   ),

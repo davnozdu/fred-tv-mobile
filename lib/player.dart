@@ -40,6 +40,11 @@ class _PlayerState extends State<Player> {
   late bool _isFav = widget.channel.favorite;
   Timer? _hideTimer;
   Timer? _ticker;
+  Timer? _watchdog;
+  Duration _lastPos = Duration.zero;
+  DateTime _lastProgress = DateTime.now();
+  int _autoBufferSec = 20;
+  final List<DateTime> _rebufferTimes = [];
   final FocusNode _focusNode = FocusNode();
 
   bool get _isLive => widget.channel.mediaType == MediaType.livestream;
@@ -62,6 +67,35 @@ class _PlayerState extends State<Player> {
     _ticker = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (mounted && _controlsVisible) setState(() {});
     });
+    // Watchdog: restart a stream that silently freezes (plays but position
+    // stops advancing) — covers stalls that never raise an error event.
+    _watchdog = Timer.periodic(const Duration(seconds: 2), (_) => _checkAlive());
+  }
+
+  void _checkAlive() {
+    final c = _controller;
+    if (c == null || exiting || _isMovie) return;
+    // Only act on a real freeze — never fight a user-initiated pause.
+    final playing = _isPlaying && (c.isPlaying() ?? false);
+    final pos = c.videoPlayerController?.value.position ?? Duration.zero;
+    if (!playing || pos != _lastPos) {
+      _lastPos = pos;
+      _lastProgress = DateTime.now();
+      return;
+    }
+    if (DateTime.now().difference(_lastProgress) > const Duration(seconds: 5)) {
+      _lastProgress = DateTime.now();
+      _reconnect();
+    }
+  }
+
+  Future<void> _reconnect() async {
+    final ds = _dataSource;
+    if (exiting || ds == null) return;
+    try {
+      // Rebuild via _setup so the (possibly grown) auto-buffer applies.
+      await _setup(ds.url, ds.liveStream);
+    } catch (_) {}
   }
 
   Future<void> _init() async {
@@ -122,7 +156,10 @@ class _PlayerState extends State<Player> {
         bufferForPlaybackAfterRebufferMs: 2000,
       );
     }
-    final ms = widget.settings.bufferSeconds * 1000;
+    // bufferSeconds <= 0 means "Auto": start moderate, grow on repeated stalls.
+    final configured = widget.settings.bufferSeconds;
+    final sec = configured <= 0 ? _autoBufferSec : configured;
+    final ms = sec * 1000;
     return BetterPlayerBufferingConfiguration(
       minBufferMs: ms,
       maxBufferMs: (ms * 2).clamp(30000, 600000),
@@ -134,30 +171,46 @@ class _PlayerState extends State<Player> {
   void _onEvent(BetterPlayerEvent event) {
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.play:
+        _lastProgress = DateTime.now();
         if (mounted) setState(() => _isPlaying = true);
         break;
       case BetterPlayerEventType.pause:
         if (mounted) setState(() => _isPlaying = false);
         break;
-      case BetterPlayerEventType.finished:
+      case BetterPlayerEventType.bufferingStart:
+        _onRebuffer();
+        break;
       case BetterPlayerEventType.exception:
         _onDisconnect();
+        break;
+      case BetterPlayerEventType.finished:
+        if (!_archiveMode) _onDisconnect();
         break;
       default:
         break;
     }
   }
 
-  // Reconnect live streams on error/drop (not archive clips).
-  Future<void> _onDisconnect() async {
-    if (!mounted || exiting || !_isLive || _archiveMode || _dataSource == null) {
-      return;
+  // Auto-buffer: grow the buffer when the stream stalls repeatedly.
+  void _onRebuffer() {
+    if (widget.settings.bufferSeconds > 0) return; // only in Auto mode
+    final now = DateTime.now();
+    _rebufferTimes.add(now);
+    _rebufferTimes.removeWhere(
+      (t) => now.difference(t) > const Duration(minutes: 2),
+    );
+    if (_rebufferTimes.length >= 3 && _autoBufferSec < 90) {
+      _autoBufferSec = (_autoBufferSec + 15).clamp(20, 90);
+      _rebufferTimes.clear();
     }
+  }
+
+  // Reconnect live/archive streams on error or hard drop (not movies).
+  Future<void> _onDisconnect() async {
+    if (!mounted || exiting || _isMovie || _dataSource == null) return;
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted || exiting) return;
-    try {
-      await _controller?.setupDataSource(_dataSource!);
-    } catch (_) {}
+    await _reconnect();
   }
 
   // ---------------------------------------------------------------------------
@@ -697,6 +750,7 @@ class _PlayerState extends State<Player> {
   void dispose() {
     _hideTimer?.cancel();
     _ticker?.cancel();
+    _watchdog?.cancel();
     _focusNode.dispose();
     _controller?.dispose(forceDispose: true);
     super.dispose();
