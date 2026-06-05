@@ -164,7 +164,7 @@ Future<Map<String, dynamic>> _parseAllPrograms(String epgUrl) async {
         if (id != null) {
           final names = <String>[];
           for (final dn in _displayNameRegex.allMatches(block)) {
-            final k = normalizeChannelName(
+            final k = normalizeChannelNameLoose(
               (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
             );
             if (k.isNotEmpty) names.add(k);
