@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:open_tv/backend/epg.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/id_data.dart';
@@ -33,12 +34,16 @@ class _PlayerState extends State<Player> {
   bool _controlsVisible = false;
   int _focusedIndex = 2;
   bool _isPlaying = true;
+  bool _archiveMode = false;
+  EpgProgram? _currentProgram;
+  List<EpgProgram>? _programs;
   late bool _isFav = widget.channel.favorite;
   Timer? _hideTimer;
   Timer? _ticker;
   final FocusNode _focusNode = FocusNode();
 
   bool get _isLive => widget.channel.mediaType == MediaType.livestream;
+  bool get _isMovie => widget.channel.mediaType == MediaType.movie;
 
   Duration get _position =>
       _controller?.videoPlayerController?.value.position ?? Duration.zero;
@@ -54,55 +59,62 @@ class _PlayerState extends State<Player> {
       DeviceOrientation.landscapeRight,
     ]);
     _init();
-    // Refresh the progress bar/time while the panel is visible.
     _ticker = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (mounted && _controlsVisible) setState(() {});
     });
   }
 
   Future<void> _init() async {
+    await _setup(widget.channel.url!, _isLive);
+    if (widget.channel.mediaType == MediaType.movie) {
+      final secs = await Sql.getPosition(widget.channel.id!);
+      if (secs != null && secs > 0) {
+        await _controller?.seekTo(Duration(seconds: secs));
+      }
+    }
+  }
+
+  Future<void> _setup(String url, bool live) async {
     final headers = await Sql.getChannelHeaders(widget.channel.id!);
     final hdr = <String, String>{
       if (headers?.referrer != null) "Referer": headers!.referrer!,
       if (headers?.httpOrigin != null) "Origin": headers!.httpOrigin!,
       if (headers?.userAgent != null) "User-Agent": headers!.userAgent!,
     };
-    _dataSource = BetterPlayerDataSource(
+    final ds = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
-      widget.channel.url!,
-      liveStream: _isLive,
+      url,
+      liveStream: live,
       headers: hdr.isNotEmpty ? hdr : null,
       bufferingConfiguration: _bufferingConfig(),
     );
-    final controller = BetterPlayerController(
-      BetterPlayerConfiguration(
-        autoPlay: true,
-        fit: BoxFit.contain,
-        handleLifecycle: true,
-        autoDispose: false,
-        allowedScreenSleep: false,
-        controlsConfiguration: const BetterPlayerControlsConfiguration(
-          showControls: false,
+    _dataSource = ds;
+    var controller = _controller;
+    if (controller == null) {
+      controller = BetterPlayerController(
+        BetterPlayerConfiguration(
+          autoPlay: true,
+          fit: BoxFit.contain,
+          handleLifecycle: true,
+          autoDispose: false,
+          allowedScreenSleep: false,
+          controlsConfiguration: const BetterPlayerControlsConfiguration(
+            showControls: false,
+          ),
         ),
-      ),
-    );
-    controller.addEventsListener(_onEvent);
-    await controller.setupDataSource(_dataSource!);
+      );
+      controller.addEventsListener(_onEvent);
+    }
+    await controller.setupDataSource(ds);
     if (!mounted) {
       controller.dispose(forceDispose: true);
       return;
-    }
-    if (widget.channel.mediaType == MediaType.movie) {
-      final secs = await Sql.getPosition(widget.channel.id!);
-      if (secs != null && secs > 0) {
-        await controller.seekTo(Duration(seconds: secs));
-      }
     }
     setState(() => _controller = controller);
   }
 
   BetterPlayerBufferingConfiguration _bufferingConfig() {
-    if (widget.settings.lowLatency && _isLive) {
+    if (widget.settings.lowLatency && _isLive && !_archiveMode) {
       return const BetterPlayerBufferingConfiguration(
         minBufferMs: 5000,
         maxBufferMs: 15000,
@@ -136,15 +148,168 @@ class _PlayerState extends State<Player> {
     }
   }
 
-  // Live streams should reconnect automatically on error/drop.
+  // Reconnect live streams on error/drop (not archive clips).
   Future<void> _onDisconnect() async {
-    if (!mounted || exiting || !_isLive || _dataSource == null) return;
+    if (!mounted || exiting || !_isLive || _archiveMode || _dataSource == null) {
+      return;
+    }
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted || exiting) return;
     try {
       await _controller?.setupDataSource(_dataSource!);
     } catch (_) {}
   }
+
+  // ---------------------------------------------------------------------------
+  // Archive (Flussonic catchup)
+  // ---------------------------------------------------------------------------
+
+  // Flussonic catchup: play from the program's start and continue through the
+  // archive (timeshift). index-<from>-<dur> is ignored by this provider, but
+  // index.m3u8?utc=<start>&lutc=<now> works.
+  String? _archiveUrl(EpgProgram p) {
+    final base = widget.channel.url;
+    if (base == null) return null;
+    final q = base.indexOf('?');
+    final clean = q >= 0 ? base.substring(0, q) : base;
+    final idx = clean.lastIndexOf('/');
+    if (idx <= 0) return null;
+    final root = clean.substring(0, idx); // .../<channelId>
+    final start = p.start.millisecondsSinceEpoch ~/ 1000;
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    if (start >= now) return null;
+    return '$root/index.m3u8?utc=$start&lutc=$now';
+  }
+
+  Future<void> _playLive() async {
+    _archiveMode = false;
+    _currentProgram = null;
+    await _setup(widget.channel.url!, true);
+  }
+
+  Future<void> _playArchive(EpgProgram p) async {
+    final url = _archiveUrl(p);
+    if (url == null) return;
+    _archiveMode = true;
+    _currentProgram = p;
+    await _setup(url, true); // timeshift = live-style playlist
+  }
+
+  Future<void> _openArchiveMenu() async {
+    final epgUrl = widget.settings.epgUrl.trim();
+    if (epgUrl.isEmpty) {
+      _toast("EPG is not configured (Settings → EPG URL)");
+      return;
+    }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: Colors.white)),
+    );
+    List<EpgProgram> programs = [];
+    try {
+      programs = _programs ?? await fetchPrograms(epgUrl, widget.channel.name);
+      _programs = programs;
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // close loading
+
+    final now = DateTime.now().toUtc();
+    final from = now.subtract(const Duration(days: 3));
+    final past =
+        programs
+            .where((p) => p.start.isAfter(from) && p.start.isBefore(now))
+            .toList()
+          ..sort((a, b) => b.start.compareTo(a.start));
+
+    if (past.isEmpty) {
+      _toast("No archive programmes found for this channel");
+      return;
+    }
+    await _showProgramSheet(past);
+  }
+
+  Future<void> _showProgramSheet(List<EpgProgram> past) async {
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black.withValues(alpha: 0.95),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.8,
+            child: Column(
+              children: [
+                ListTile(
+                  autofocus: true,
+                  leading: const Icon(
+                    Icons.live_tv,
+                    color: Colors.red,
+                  ),
+                  title: const Text(
+                    "Live",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _playLive();
+                  },
+                ),
+                const Divider(height: 1, color: Colors.white24),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: past.length,
+                    itemBuilder: (_, i) {
+                      final p = past[i];
+                      final local = p.start.toLocal();
+                      return ListTile(
+                        dense: true,
+                        leading: Text(
+                          _stamp(local),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                        title: Text(
+                          p.title.isEmpty ? "—" : p.title,
+                          style: const TextStyle(color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _playArchive(p);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _stamp(DateTime d) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return "${two(d.day)}.${two(d.month)} ${two(d.hour)}:${two(d.minute)}";
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
 
   Future<void> _toggleFavorite() async {
     final value = !_isFav;
@@ -156,10 +321,7 @@ class _PlayerState extends State<Player> {
   List<_ControlAction> get _controls => [
     _ControlAction(Icons.replay_30, () => _seekRelative(-30)),
     _ControlAction(Icons.replay_5, () => _seekRelative(-5)),
-    _ControlAction(
-      _isPlaying ? Icons.pause : Icons.play_arrow,
-      _togglePlay,
-    ),
+    _ControlAction(_isPlaying ? Icons.pause : Icons.play_arrow, _togglePlay),
     _ControlAction(Icons.forward_5, () => _seekRelative(5)),
     _ControlAction(Icons.forward_30, () => _seekRelative(30)),
     _ControlAction(
@@ -167,6 +329,7 @@ class _PlayerState extends State<Player> {
       _toggleFavorite,
     ),
     _ControlAction(Icons.audiotrack, _openAudioModal),
+    if (_isLive) _ControlAction(Icons.history, _openArchiveMenu),
   ];
 
   void _togglePlay() {
@@ -356,7 +519,9 @@ class _PlayerState extends State<Player> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        widget.channel.name,
+                        _archiveMode
+                            ? "${widget.channel.name}  •  Archive"
+                            : widget.channel.name,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -405,7 +570,32 @@ class _PlayerState extends State<Player> {
   }
 
   Widget _buildProgress() {
-    if (_isLive) {
+    if (_archiveMode) {
+      final p = _currentProgram;
+      final label = p == null
+          ? "ARCHIVE"
+          : "ARCHIVE · ${_stamp(p.start.toLocal())}"
+                "${p.title.isEmpty ? '' : '  ${p.title}'}";
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.history, color: Colors.amber, size: 14),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }
+    if (!_isMovie) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: const [
