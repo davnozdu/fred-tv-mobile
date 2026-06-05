@@ -12,6 +12,7 @@ class Settings {
   bool fillLogosFromEpg;
   String epgUrl;
   int bufferSeconds;
+  bool extendedArchive;
   Settings({
     this.defaultView = ViewType.all,
     this.refreshOnStart = false,
@@ -23,6 +24,7 @@ class Settings {
     this.fillLogosFromEpg = true,
     this.epgUrl = 'http://epg.one/epg.xml',
     this.bufferSeconds = 0, // 0 = Auto (adaptive buffer)
+    this.extendedArchive = false, // false = 1-day (epg.one), true = 7-day (iptvx)
   });
 
   List<MediaType> getMediaTypes() {

@@ -16,6 +16,7 @@ const lowLatencyProp = "streamCaching";
 const fillLogosFromEpgProp = "fillLogosFromEpg";
 const epgUrlProp = "epgUrl";
 const bufferSecondsProp = "bufferSeconds";
+const extendedArchiveProp = "extendedArchive";
 
 class SettingsService {
   static Future<Settings> getSettings() async {
@@ -31,6 +32,7 @@ class SettingsService {
     var fillLogos = settingsMap[fillLogosFromEpgProp];
     var epg = settingsMap[epgUrlProp];
     var buffer = settingsMap[bufferSecondsProp];
+    var extArchive = settingsMap[extendedArchiveProp];
     if (view != null) {
       settings.defaultView = ViewType.values[int.parse(view)];
     }
@@ -61,6 +63,9 @@ class SettingsService {
     if (buffer != null) {
       settings.bufferSeconds = int.parse(buffer);
     }
+    if (extArchive != null) {
+      settings.extendedArchive = int.parse(extArchive) == 1;
+    }
     return settings;
   }
 
@@ -78,6 +83,8 @@ class SettingsService {
         .toString();
     settingsMap[epgUrlProp] = settings.epgUrl;
     settingsMap[bufferSecondsProp] = settings.bufferSeconds.toString();
+    settingsMap[extendedArchiveProp] = (settings.extendedArchive ? 1 : 0)
+        .toString();
     await Sql.updateSettings(settingsMap);
   }
 

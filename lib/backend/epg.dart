@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 /// Default EPG with a week of past programmes (gzipped) — used for the archive
 /// list. Logos stay on epg.one (better name coverage); this one is only pulled
@@ -117,8 +119,9 @@ final _titleRegex = RegExp(r'<title[^>]*>(.*?)</title>', dotAll: true);
 final Map<String, List<EpgProgram>> _programCache = {};
 final Map<String, DateTime> _programCacheAt = {};
 
-/// Streams the XMLTV EPG and returns programmes for the channel whose
-/// display-name matches [channelName]. Times are UTC.
+/// Returns programmes for the channel matching [channelName]. The heavy
+/// download + gzip + parse runs in a background isolate (UI stays responsive),
+/// with an in-memory and on-disk cache for fast subsequent opens.
 Future<List<EpgProgram>> fetchPrograms(
   String epgUrl,
   String channelName,
@@ -132,6 +135,35 @@ Future<List<EpgProgram>> fetchPrograms(
       DateTime.now().difference(cachedAt) < const Duration(minutes: 10)) {
     return _programCache[cacheKey]!;
   }
+  final fromDisk = await _readProgramDisk(cacheKey);
+  if (fromDisk != null) {
+    _programCache[cacheKey] = fromDisk;
+    _programCacheAt[cacheKey] = DateTime.now();
+    return fromDisk;
+  }
+  final raw = await compute(_downloadAndParsePrograms, {
+    'url': epgUrl,
+    'target': target,
+  });
+  final programs = raw.map(_programFromMap).toList();
+  _programCache[cacheKey] = programs;
+  _programCacheAt[cacheKey] = DateTime.now();
+  await _writeProgramDisk(cacheKey, raw);
+  return programs;
+}
+
+EpgProgram _programFromMap(Map<String, dynamic> m) => EpgProgram(
+  DateTime.fromMillisecondsSinceEpoch(m['s'] as int, isUtc: true),
+  DateTime.fromMillisecondsSinceEpoch(m['e'] as int, isUtc: true),
+  m['t'] as String,
+);
+
+// Runs in a background isolate (via compute). Returns serializable maps.
+Future<List<Map<String, dynamic>>> _downloadAndParsePrograms(
+  Map<String, String> args,
+) async {
+  final epgUrl = args['url']!;
+  final target = args['target']!;
   final client = http.Client();
   try {
     final response = await client.send(http.Request('GET', Uri.parse(epgUrl)));
@@ -143,7 +175,7 @@ Future<List<EpgProgram>> fetchPrograms(
       bytes = bytes.transform(gzip.decoder);
     }
     final ids = <String>{};
-    final programs = <EpgProgram>[];
+    final out = <Map<String, dynamic>>[];
     final current = StringBuffer();
     await for (final line in bytes
         .transform(utf8.decoder)
@@ -155,10 +187,10 @@ Future<List<EpgProgram>> fetchPrograms(
         final id = _channelIdRegex.firstMatch(block)?.group(1);
         if (id != null) {
           for (final dn in _displayNameRegex.allMatches(block)) {
-            final key = normalizeChannelNameLoose(
-              (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
-            );
-            if (key == target) {
+            if (normalizeChannelNameLoose(
+                  (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
+                ) ==
+                target) {
               ids.add(id);
               break;
             }
@@ -175,18 +207,49 @@ Future<List<EpgProgram>> fetchPrograms(
         if (sm == null || em == null) continue;
         final start = _parseXmltvTime(sm.group(1)!, sm.group(2));
         final stop = _parseXmltvTime(em.group(1)!, em.group(2));
-        var title = (_titleRegex.firstMatch(block)?.group(1) ?? '')
+        final title = (_titleRegex.firstMatch(block)?.group(1) ?? '')
             .replaceAll(_tagRegex, '')
             .trim();
-        programs.add(EpgProgram(start, stop, _unescapeXml(title)));
+        out.add({
+          's': start.millisecondsSinceEpoch,
+          'e': stop.millisecondsSinceEpoch,
+          't': _unescapeXml(title),
+        });
       }
     }
-    _programCache[cacheKey] = programs;
-    _programCacheAt[cacheKey] = DateTime.now();
-    return programs;
+    return out;
   } finally {
     client.close();
   }
+}
+
+Future<File> _programCacheFile(String key) async {
+  final dir = await getTemporaryDirectory();
+  return File('${dir.path}/epg_prog_${key.hashCode}.json');
+}
+
+Future<List<EpgProgram>?> _readProgramDisk(String key) async {
+  try {
+    final f = await _programCacheFile(key);
+    if (!await f.exists()) return null;
+    if (DateTime.now().difference(await f.lastModified()) >
+        const Duration(hours: 6)) {
+      return null;
+    }
+    final data = jsonDecode(await f.readAsString()) as List;
+    return data
+        .map((m) => _programFromMap(Map<String, dynamic>.from(m as Map)))
+        .toList();
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> _writeProgramDisk(String key, List<Map<String, dynamic>> raw) async {
+  try {
+    final f = await _programCacheFile(key);
+    await f.writeAsString(jsonEncode(raw));
+  } catch (_) {}
 }
 
 DateTime _parseXmltvTime(String digits, String? tz) {

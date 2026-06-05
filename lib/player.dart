@@ -266,114 +266,46 @@ class _PlayerState extends State<Player> {
     await _setup(url, true); // timeshift = live-style playlist
   }
 
-  Future<void> _openArchiveMenu() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) =>
-          const Center(child: CircularProgressIndicator(color: Colors.white)),
-    );
-    List<EpgProgram> programs = [];
-    try {
-      programs =
-          _programs ?? await fetchPrograms(archiveEpgUrl, widget.channel.name);
-      _programs = programs;
-    } catch (_) {}
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); // close loading
-
+  // Loads & filters the archive programme list (runs the heavy fetch in a
+  // background isolate; the sheet shows a spinner meanwhile, video keeps playing).
+  Future<List<EpgProgram>> _loadPrograms() async {
+    final extended = widget.settings.extendedArchive;
+    final url = extended ? archiveEpgUrl : widget.settings.epgUrl.trim();
+    if (url.isEmpty) return [];
+    final all = _programs ?? await fetchPrograms(url, widget.channel.name);
+    _programs = all;
     final now = DateTime.now().toUtc();
-    final from = now.subtract(const Duration(days: 7));
-    final past =
-        programs
-            .where((p) => p.start.isAfter(from) && p.start.isBefore(now))
-            .toList()
-          ..sort((a, b) => b.start.compareTo(a.start));
-
-    if (past.isEmpty) {
-      _toast("No archive programmes found for this channel");
-      return;
-    }
-    await _showProgramSheet(past);
+    final from = now.subtract(Duration(days: extended ? 7 : 2));
+    return all
+        .where((p) => p.start.isAfter(from) && p.start.isBefore(now))
+        .toList()
+      ..sort((a, b) => b.start.compareTo(a.start));
   }
 
-  Future<void> _showProgramSheet(List<EpgProgram> past) async {
+  // Opens immediately (non-blocking); the list fills in once loaded.
+  Future<void> _openArchiveMenu() async {
     await showModalBottomSheet(
       context: context,
       backgroundColor: Colors.black.withValues(alpha: 0.95),
       isScrollControlled: true,
-      builder: (ctx) {
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.of(ctx).size.height * 0.8,
-            child: Column(
-              children: [
-                ListTile(
-                  autofocus: true,
-                  leading: const Icon(
-                    Icons.live_tv,
-                    color: Colors.red,
-                  ),
-                  title: const Text(
-                    "Live",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    _playLive();
-                  },
-                ),
-                const Divider(height: 1, color: Colors.white24),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: past.length,
-                    itemBuilder: (_, i) {
-                      final p = past[i];
-                      final local = p.start.toLocal();
-                      return ListTile(
-                        dense: true,
-                        leading: Text(
-                          _stamp(local),
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                          ),
-                        ),
-                        title: Text(
-                          p.title.isEmpty ? "—" : p.title,
-                          style: const TextStyle(color: Colors.white),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          _playArchive(p);
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (ctx) => _ArchiveSheet(
+        load: _loadPrograms,
+        stamp: _stamp,
+        onLive: () {
+          Navigator.of(ctx).pop();
+          _playLive();
+        },
+        onPick: (p) {
+          Navigator.of(ctx).pop();
+          _playArchive(p);
+        },
+      ),
     );
   }
 
   String _stamp(DateTime d) {
     String two(int v) => v.toString().padLeft(2, '0');
     return "${two(d.day)}.${two(d.month)} ${two(d.hour)}:${two(d.minute)}";
-  }
-
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -768,5 +700,124 @@ class _PlayerState extends State<Player> {
     _focusNode.dispose();
     _controller?.dispose(forceDispose: true);
     super.dispose();
+  }
+}
+
+/// Archive programme list. Opens immediately and loads asynchronously so the
+/// user can keep watching while the EPG is fetched/parsed in the background.
+class _ArchiveSheet extends StatefulWidget {
+  final Future<List<EpgProgram>> Function() load;
+  final String Function(DateTime) stamp;
+  final VoidCallback onLive;
+  final void Function(EpgProgram) onPick;
+  const _ArchiveSheet({
+    required this.load,
+    required this.stamp,
+    required this.onLive,
+    required this.onPick,
+  });
+
+  @override
+  State<_ArchiveSheet> createState() => _ArchiveSheetState();
+}
+
+class _ArchiveSheetState extends State<_ArchiveSheet> {
+  List<EpgProgram>? _items;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    List<EpgProgram> items = [];
+    try {
+      items = await widget.load();
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _items = items;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.8,
+        child: Column(
+          children: [
+            ListTile(
+              autofocus: true,
+              leading: const Icon(Icons.live_tv, color: Colors.red),
+              title: const Text(
+                "Live",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onTap: widget.onLive,
+            ),
+            const Divider(height: 1, color: Colors.white24),
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.white),
+              SizedBox(height: 16),
+              Text(
+                "Loading archive…",
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final items = _items ?? [];
+    if (items.isEmpty) {
+      return const Center(
+        child: Text(
+          "No archive programmes for this channel",
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+    return ListView.builder(
+      itemCount: items.length,
+      itemBuilder: (_, i) {
+        final p = items[i];
+        return ListTile(
+          dense: true,
+          leading: Text(
+            widget.stamp(p.start.toLocal()),
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          title: Text(
+            p.title.isEmpty ? "—" : p.title,
+            style: const TextStyle(color: Colors.white),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () => widget.onPick(p),
+        );
+      },
+    );
   }
 }

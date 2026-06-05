@@ -354,6 +354,26 @@ class _SettingsState extends State<SettingsView> {
                     onTap: () async => await _showBufferDialog(context),
                   ),
                   ListTile(
+                    title: const Text("Extended archive (7 days)"),
+                    subtitle: const Text(
+                      "More history via iptvx.one — slower first open (default: 1 day)",
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value: settings.extendedArchive,
+                          onChanged: (bool value) {
+                            setState(() {
+                              settings.extendedArchive = value;
+                            });
+                            updateSettings();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  ListTile(
                     title: const Text("Refresh sources on start"),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
