@@ -10,7 +10,7 @@ import 'package:path_provider/path_provider.dart';
 /// Checks the project's GitHub Releases for a newer version on startup and,
 /// if found, offers to download and install the APK.
 class Updater {
-  static const String repo = "davnozdu/fred-tv-mobile";
+  static const String repo = "davnozdu/smotrim-player";
 
   static Future<void> checkAndPrompt(GlobalKey<NavigatorState> navKey) async {
     try {
