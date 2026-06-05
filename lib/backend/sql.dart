@@ -32,8 +32,8 @@ class Sql {
       insertChannel(Channel channel) {
     return (SqliteWriteContext tx, Map<String, String> memory) async {
       await tx.execute('''
-        INSERT INTO channels (name, image, url, source_id, media_type, series_id, favorite, stream_id, group_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO channels (name, search_name, image, url, source_id, media_type, series_id, favorite, stream_id, group_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (name, source_id)
         DO UPDATE SET
           url = excluded.url,
@@ -44,6 +44,7 @@ class Sql {
           series_id = excluded.series_id;
       ''', [
         channel.name,
+        channel.name.toLowerCase(),
         channel.image,
         channel.url,
         channel.sourceId == -1
@@ -157,13 +158,15 @@ class Sql {
     var mediaTypes = filters.seriesId == null
         ? filters.mediaTypes!.map((x) => x.index)
         : [1];
-    var query = filters.query ?? "";
+    // Lowercase in Dart so search is case-insensitive for Cyrillic too
+    // (SQLite LIKE only folds case for ASCII).
+    var query = (filters.query ?? "").toLowerCase();
     var keywords = filters.useKeywords
         ? query.split(" ").map((f) => "%$f%").toList()
         : ["%$query%"];
     var sqlQuery = '''
-        SELECT * FROM channels 
-        WHERE (${getKeywordsSql(keywords.length)})
+        SELECT * FROM channels
+        WHERE (${getKeywordsSql(keywords.length, "COALESCE(search_name, '')")})
         AND media_type IN (${generatePlaceholders(mediaTypes.length)})
         AND source_id IN (${generatePlaceholders(filters.sourceIds!.length)})
         AND url IS NOT NULL
@@ -215,8 +218,8 @@ class Sql {
     return List.filled(size, "?").join(",");
   }
 
-  static String getKeywordsSql(int size) {
-    return List.generate(size, (_) => "name LIKE ?").join(" AND ");
+  static String getKeywordsSql(int size, [String column = "name"]) {
+    return List.generate(size, (_) => "$column LIKE ?").join(" AND ");
   }
 
   static Future<List<Channel>> searchGroup(Filters filters) async {

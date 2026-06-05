@@ -192,20 +192,29 @@ class _ChannelTileState extends State<ChannelTile> {
       builder: (_, map, __) {
         final title = map[normalizeChannelName(widget.channel.name)];
         if (title == null || title.isEmpty) return const SizedBox.shrink();
+        const style = TextStyle(color: Colors.white70, fontSize: 12);
+        // Only the focused tile scrolls — keeps the list light on weak boxes.
         return Padding(
           padding: const EdgeInsets.only(top: 2),
           child: SizedBox(
             height: 16,
-            child: Marquee(
-              text: title,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-              velocity: 28,
-              blankSpace: 50,
-              startPadding: 0,
-              pauseAfterRound: const Duration(milliseconds: 1200),
-              accelerationDuration: const Duration(milliseconds: 300),
-              decelerationDuration: const Duration(milliseconds: 300),
-            ),
+            child: _focusNode.hasFocus
+                ? Marquee(
+                    text: title,
+                    style: style,
+                    velocity: 28,
+                    blankSpace: 50,
+                    startPadding: 0,
+                    pauseAfterRound: const Duration(milliseconds: 1200),
+                    accelerationDuration: const Duration(milliseconds: 300),
+                    decelerationDuration: const Duration(milliseconds: 300),
+                  )
+                : Text(
+                    title,
+                    style: style,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
           ),
         );
       },

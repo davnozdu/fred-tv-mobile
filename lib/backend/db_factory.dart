@@ -121,6 +121,21 @@ class DbFactory {
         await tx.execute('''
           CREATE INDEX index_groups_media_type ON groups(media_type);
         ''');
+      }))
+      ..add(SqliteMigration(4, (tx) async {
+        // Lowercased name for case-insensitive search (incl. Cyrillic).
+        await tx.execute('ALTER TABLE channels ADD COLUMN search_name TEXT;');
+        await tx.execute(
+            'CREATE INDEX index_channel_search_name ON channels(search_name);');
+        // Backfill existing rows (SQLite lower() can't fold Cyrillic, so do it
+        // in Dart).
+        final rows = await tx.getAll('SELECT id, name FROM channels');
+        for (final row in rows) {
+          await tx.execute(
+            'UPDATE channels SET search_name = ? WHERE id = ?',
+            [(row.columnAt(1) as String?)?.toLowerCase(), row.columnAt(0)],
+          );
+        }
       }));
     await migrations.migrate(db);
     return db;
