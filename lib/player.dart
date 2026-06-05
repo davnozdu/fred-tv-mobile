@@ -44,8 +44,16 @@ class _PlayerState extends State<Player> {
   Duration _duration = Duration.zero;
   Timer? _hideTimer;
   final FocusNode _focusNode = FocusNode();
+  late bool _isFav = widget.channel.favorite;
 
   bool get _isLive => widget.channel.mediaType == MediaType.livestream;
+
+  Future<void> _toggleFavorite() async {
+    final value = !_isFav;
+    await Sql.favoriteChannel(widget.channel.id!, value);
+    widget.channel.favorite = value;
+    if (mounted) setState(() => _isFav = value);
+  }
 
   @override
   void initState() {
@@ -78,7 +86,9 @@ class _PlayerState extends State<Player> {
     );
     subscriptions.add(
       player.stream.position.listen((position) {
-        if (mounted) setState(() => _position = position);
+        _position = position;
+        // Перерисовываем только когда панель видна — не дёргаем UI при просмотре.
+        if (mounted && _controlsVisible) setState(() {});
       }),
     );
     subscriptions.add(
@@ -91,9 +101,8 @@ class _PlayerState extends State<Player> {
   Future<void> setMpvOptions() async {
     if (player.platform is! mk.NativePlayer) return;
     final native = player.platform as mk.NativePlayer;
-    // Аппаратное декодирование (HD/4K без рывков на ТВ-боксах),
-    // auto-safe откатывается на софт, если HW недоступен.
-    await native.setProperty('hwdec', 'auto-safe');
+    // Форсируем аппаратное декодирование на Android (HD/4K без потери кадров).
+    await native.setProperty('hwdec', 'mediacodec-copy');
     if (widget.channel.mediaType == MediaType.livestream &&
         widget.settings.lowLatency) {
       // Минимальная задержка ценой буфера.
@@ -216,6 +225,10 @@ class _PlayerState extends State<Player> {
     ),
     _ControlAction(Icons.forward_5, () => _seekRelative(5)),
     _ControlAction(Icons.forward_30, () => _seekRelative(30)),
+    _ControlAction(
+      _isFav ? Icons.favorite : Icons.favorite_border,
+      _toggleFavorite,
+    ),
     _ControlAction(Icons.audiotrack, openAudioModal),
     _ControlAction(Icons.subtitles, openSubtitlesModal),
     _ControlAction(Icons.aspect_ratio, toggleZoom),
