@@ -237,6 +237,36 @@ class S {
   String get hlsProxyPlaylist => _t('Playlist', 'Плейлист', 'Плейлист');
   String get hlsProxyResult =>
       _t('Resulting link', 'Итоговая ссылка', 'Підсумкове посилання');
+  String get proxyChecking =>
+      _t('Checking server…', 'Проверка сервера…', 'Перевірка сервера…');
+  String get proxyOnline => _t(
+    'Server is running (port open)',
+    'Сервер работает (порт открыт)',
+    'Сервер працює (порт відкрито)',
+  );
+  String get proxyOffline => _t(
+    'Service is not running or not installed',
+    'Сервис не запущен или не установлен',
+    'Сервіс не запущено або не встановлено',
+  );
+  String get proxyRecheck => _t('Recheck', 'Проверить', 'Перевірити');
+  String get proxyInstall =>
+      _t('Install HLS-PROXY?', 'Установить HLS-PROXY?', 'Встановити HLS-PROXY?');
+  String get proxyUpdate => _t(
+    'Update HLS-PROXY',
+    'Обновить HLS-PROXY',
+    'Оновити HLS-PROXY',
+  );
+  String get proxyAlreadyInstalled => _t(
+    'HLS-PROXY is already installed. Update to the latest version?',
+    'HLS-PROXY уже установлен. Обновить до последней версии?',
+    'HLS-PROXY вже встановлено. Оновити до останньої версії?',
+  );
+  String get proxyAfterInstall => _t(
+    'After installing, add your playlist and complete the setup.',
+    'После установки добавьте свой плейлист и проведите настройку.',
+    'Після встановлення додайте свій плейлист і проведіть налаштування.',
+  );
   String get finish => _t('Finish', 'Готово', 'Готово');
   String get doneTitle => _t('Done!', 'Готово!', 'Готово!');
   String get doneSub =>

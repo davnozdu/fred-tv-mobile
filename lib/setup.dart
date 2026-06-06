@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:animations/animations.dart';
 import 'package:flutter/services.dart';
+import 'package:open_tv/backend/proxy_installer.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:loader_overlay/loader_overlay.dart';
@@ -17,6 +21,8 @@ import 'package:open_tv/models/steps.dart';
 import 'package:open_tv/models/view_type.dart';
 import 'package:open_tv/error.dart';
 import 'package:open_tv/l10n/strings.dart';
+
+enum _ProxyStatus { unknown, checking, online, offline }
 
 class Setup extends StatefulWidget {
   final bool showAppBar;
@@ -61,7 +67,54 @@ class _SetupState extends State<Setup> {
   final proxyPortFocus = FocusNode();
   final proxyPlaylistFocus = FocusNode();
 
+  Timer? _proxyDebounce;
+  _ProxyStatus _proxyStatus = _ProxyStatus.unknown;
+  bool _proxyInstalled = false;
+
   bool get _isProxy => selectedSourceType == SourceType.hlsProxy;
+
+  // Host only (strip scheme / port / path) — for the port-open check.
+  String _proxyHost() {
+    var ip = proxyIpCtrl.text.trim();
+    ip = ip.replaceAll(RegExp(r'^https?://'), '');
+    ip = ip.replaceAll(RegExp(r'/.*$'), '');
+    ip = ip.replaceAll(RegExp(r':\d+$'), '');
+    return ip;
+  }
+
+  // Checks whether something is listening on the proxy host:port.
+  Future<void> _checkProxy() async {
+    final host = _proxyHost();
+    final port = int.tryParse(proxyPortCtrl.text.trim());
+    if (host.isEmpty || port == null) {
+      if (mounted) setState(() => _proxyStatus = _ProxyStatus.offline);
+      return;
+    }
+    setState(() => _proxyStatus = _ProxyStatus.checking);
+    try {
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(seconds: 2),
+      );
+      socket.destroy();
+      if (mounted) setState(() => _proxyStatus = _ProxyStatus.online);
+    } catch (_) {
+      if (mounted) setState(() => _proxyStatus = _ProxyStatus.offline);
+    }
+  }
+
+  void _scheduleProxyCheck() {
+    _proxyDebounce?.cancel();
+    _proxyDebounce = Timer(const Duration(milliseconds: 600), _checkProxy);
+  }
+
+  // Called when the proxy page becomes visible.
+  Future<void> _onEnterProxy() async {
+    final installed = await ProxyInstaller.isInstalled();
+    if (mounted) setState(() => _proxyInstalled = installed);
+    await _checkProxy();
+  }
 
   bool _proxyValid() =>
       proxyIpCtrl.text.trim().isNotEmpty &&
@@ -156,6 +209,7 @@ class _SetupState extends State<Setup> {
     proxyIpFocus.dispose();
     proxyPortFocus.dispose();
     proxyPlaylistFocus.dispose();
+    _proxyDebounce?.cancel();
     super.dispose();
   }
 
@@ -197,6 +251,7 @@ class _SetupState extends State<Setup> {
       });
       if (_isProxy && step == Steps.url) {
         proxyIpFocus.requestFocus();
+        _onEnterProxy();
       } else if (formPages.contains(step)) {
         focusNodes[step]?.requestFocus();
       }
@@ -610,6 +665,8 @@ class _SetupState extends State<Setup> {
         textAlign: TextAlign.center,
         style: const TextStyle(color: Colors.lightBlueAccent),
       ),
+      const SizedBox(height: 16),
+      _proxyStatusBlock(),
     ]);
   }
 
@@ -631,8 +688,97 @@ class _SetupState extends State<Setup> {
         border: const OutlineInputBorder(),
         prefixIcon: Icon(icon),
       ),
-      onChanged: (_) => setState(() => formValid = _proxyValid()),
+      onChanged: (_) {
+        setState(() {
+          formValid = _proxyValid();
+          _proxyStatus = _ProxyStatus.unknown;
+        });
+        _scheduleProxyCheck();
+      },
     );
+  }
+
+  // Server status under the fields: online / offline (+ install button & notes).
+  Widget _proxyStatusBlock() {
+    final s = S.of(context);
+    switch (_proxyStatus) {
+      case _ProxyStatus.checking:
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 10),
+            Text(s.proxyChecking),
+          ],
+        );
+      case _ProxyStatus.online:
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                s.proxyOnline,
+                style: const TextStyle(color: Colors.green),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: s.proxyRecheck,
+              onPressed: _checkProxy,
+            ),
+          ],
+        );
+      case _ProxyStatus.offline:
+        return Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.redAccent),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    s.proxyOffline,
+                    style: const TextStyle(color: Colors.redAccent),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: s.proxyRecheck,
+                  onPressed: _checkProxy,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () async {
+                await ProxyInstaller.installOrUpdate(context);
+                if (mounted) _onEnterProxy();
+              },
+              icon: const Icon(Icons.download),
+              label: Text(_proxyInstalled ? s.proxyUpdate : s.proxyInstall),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              s.proxyAfterInstall,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ],
+        );
+      case _ProxyStatus.unknown:
+        return TextButton.icon(
+          onPressed: _checkProxy,
+          icon: const Icon(Icons.refresh),
+          label: Text(s.proxyRecheck),
+        );
+    }
   }
 
   Widget getPage(

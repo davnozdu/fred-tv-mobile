@@ -26,4 +26,18 @@ class LaunchBridge {
       await _channel.invokeMethod('setAutostart', {'enabled': enabled});
     } catch (_) {}
   }
+
+  /// Whether an app with [package] is installed on the device.
+  static Future<bool> isPackageInstalled(String package) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final v = await _channel.invokeMethod<bool>(
+        'isPackageInstalled',
+        {'package': package},
+      );
+      return v ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 }

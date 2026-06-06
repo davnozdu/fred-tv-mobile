@@ -25,6 +25,16 @@ class MainActivity : FlutterActivity() {
                             .apply()
                         result.success(null)
                     }
+                    "isPackageInstalled" -> {
+                        val pkg = call.argument<String>("package") ?: ""
+                        val installed = try {
+                            packageManager.getPackageInfo(pkg, 0)
+                            true
+                        } catch (e: Exception) {
+                            false
+                        }
+                        result.success(installed)
+                    }
                     else -> result.notImplemented()
                 }
             }

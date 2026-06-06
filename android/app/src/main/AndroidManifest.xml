@@ -61,5 +61,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
         </intent>
+        <!-- Allow checking whether the HLS-PROXY companion app is installed. -->
+        <package android:name="com.hlsproxy.launcher" />
     </queries>
 </manifest>
