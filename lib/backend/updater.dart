@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:open_tv/backend/fast_downloader.dart';
 import 'package:open_tv/l10n/strings.dart';
 
 /// Checks the project's GitHub Releases for a newer version on startup and,
@@ -161,23 +162,18 @@ class Updater {
     try {
       final dir = await getTemporaryDirectory();
       final file = File("${dir.path}/update-$version.apk");
-      final client = http.Client();
-      final resp = await client.send(http.Request("GET", Uri.parse(url)));
-      final total = resp.contentLength ?? 0;
-      var received = 0;
-      final sink = file.openWrite();
-      await for (final chunk in resp.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        if (total > 0) progress.value = received / total;
-      }
-      await sink.close();
-      client.close();
-      _closeDialog(navKey);
-      await OpenFilex.open(
-        file.path,
-        type: "application/vnd.android.package-archive",
+      final ok = await FastDownloader.download(
+        url,
+        file,
+        (p) => progress.value = p,
       );
+      _closeDialog(navKey);
+      if (ok) {
+        await OpenFilex.open(
+          file.path,
+          type: "application/vnd.android.package-archive",
+        );
+      }
     } catch (_) {
       _closeDialog(navKey);
     }

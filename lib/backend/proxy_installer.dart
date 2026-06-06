@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:open_tv/backend/fast_downloader.dart';
 import 'package:open_tv/backend/launch_bridge.dart';
 import 'package:open_tv/l10n/strings.dart';
 
@@ -99,23 +100,18 @@ class ProxyInstaller {
     try {
       final dir = await getTemporaryDirectory();
       final file = File("${dir.path}/hls-proxy.apk");
-      final client = http.Client();
-      final resp = await client.send(http.Request("GET", Uri.parse(url)));
-      final total = resp.contentLength ?? 0;
-      var received = 0;
-      final sink = file.openWrite();
-      await for (final chunk in resp.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        if (total > 0) progress.value = received / total;
-      }
-      await sink.close();
-      client.close();
-      if (navigator.canPop()) navigator.pop();
-      await OpenFilex.open(
-        file.path,
-        type: "application/vnd.android.package-archive",
+      final ok = await FastDownloader.download(
+        url,
+        file,
+        (p) => progress.value = p,
       );
+      if (navigator.canPop()) navigator.pop();
+      if (ok) {
+        await OpenFilex.open(
+          file.path,
+          type: "application/vnd.android.package-archive",
+        );
+      }
     } catch (_) {
       if (navigator.canPop()) navigator.pop();
     }
