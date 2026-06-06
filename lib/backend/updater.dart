@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:open_tv/l10n/strings.dart';
 
 /// Checks the project's GitHub Releases for a newer version on startup and,
 /// if found, offers to download and install the APK.
@@ -37,10 +38,11 @@ class Updater {
       final ctx = navKey.currentContext;
       if (ctx == null || !ctx.mounted) return;
       final notes = (data["body"] ?? "").toString().trim();
+      final s = S.of(ctx);
       final accepted = await showDialog<bool>(
         context: ctx,
         builder: (c) => AlertDialog(
-          title: Text("Update available ($latest)"),
+          title: Text(s.updateAvailable(latest)),
           content: SingleChildScrollView(
             child: Text(
               notes.isNotEmpty
@@ -51,12 +53,12 @@ class Updater {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text("Later"),
+              child: Text(s.later),
             ),
             FilledButton(
               autofocus: true,
               onPressed: () => Navigator.pop(c, true),
-              child: const Text("Update"),
+              child: Text(s.update),
             ),
           ],
         ),
@@ -118,7 +120,7 @@ class Updater {
       context: ctx,
       barrierDismissible: false,
       builder: (c) => AlertDialog(
-        title: const Text("Downloading update…"),
+        title: Text(S.of(ctx).downloadingUpdate),
         content: ValueListenableBuilder<double>(
           valueListenable: progress,
           builder: (_, value, __) => Column(

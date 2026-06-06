@@ -16,6 +16,7 @@ import 'package:open_tv/models/source_type.dart';
 import 'package:open_tv/models/steps.dart';
 import 'package:open_tv/models/view_type.dart';
 import 'package:open_tv/error.dart';
+import 'package:open_tv/l10n/strings.dart';
 
 class Setup extends StatefulWidget {
   final bool showAppBar;
@@ -287,9 +288,9 @@ class _SetupState extends State<Setup> {
                                     vertical: 16,
                                   ),
                                 ),
-                                child: const Text(
-                                  "Back",
-                                  style: TextStyle(fontSize: 18),
+                                child: Text(
+                                  S.of(context).back,
+                                  style: const TextStyle(fontSize: 18),
                                 ),
                               ),
                             ),
@@ -311,10 +312,10 @@ class _SetupState extends State<Setup> {
                             child: Text(
                               step == Steps.name &&
                                       selectedSourceType == SourceType.m3u
-                                  ? "Select file"
+                                  ? S.of(context).selectFile
                                   : step == Steps.finish
-                                  ? "Finish"
-                                  : "Next",
+                                  ? S.of(context).finish
+                                  : S.of(context).next,
                               style: const TextStyle(fontSize: 18),
                             ),
                           ),
@@ -335,13 +336,13 @@ class _SetupState extends State<Setup> {
     switch (step) {
       case Steps.welcome:
         return getPage(
-          "Welcome to Fred TV",
-          "Let's set up your ${widget.showAppBar ? "new" : "first"} source",
+          S.of(context).welcomeTitle("Smotrim CZ Player"),
+          S.of(context).welcomeSub(!widget.showAppBar),
           null,
         );
       case Steps.sourceType:
         return getPage(
-          "What is your provider type?",
+          S.of(context).providerType,
           null,
           List.generate(SourceType.values.length, (i) {
             final isLast = i == SourceType.values.length - 1;
@@ -382,7 +383,7 @@ class _SetupState extends State<Setup> {
           }),
         );
       case Steps.name:
-        return getPage("What should we name this source?", null, [
+        return getPage(S.of(context).nameQuestion, null, [
           FormBuilder(
             onChanged: () {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -399,7 +400,7 @@ class _SetupState extends State<Setup> {
               focusNode: focusNodes[Steps.name],
               onSubmitted: (_) => onFieldSubmitted(Steps.name),
               decoration: InputDecoration(
-                labelText: "Name",
+                labelText: S.of(context).name,
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.label_outline),
               ),
@@ -413,7 +414,7 @@ class _SetupState extends State<Setup> {
                     return null;
                   }
                   if (existingSourceNames.contains(trimmed)) {
-                    return "Name already exists";
+                    return S.of(context).nameExists;
                   }
                   return null;
                 },
@@ -423,7 +424,7 @@ class _SetupState extends State<Setup> {
           ),
         ]);
       case Steps.url:
-        return getPage("What is your provider's URL?", null, [
+        return getPage(S.of(context).urlQuestion, null, [
           FormBuilder(
             onChanged: () {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -440,7 +441,7 @@ class _SetupState extends State<Setup> {
               focusNode: focusNodes[Steps.url],
               onSubmitted: (_) => onFieldSubmitted(Steps.url),
               decoration: InputDecoration(
-                labelText: "URL",
+                labelText: S.of(context).url,
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.link),
               ),
@@ -452,7 +453,7 @@ class _SetupState extends State<Setup> {
           ),
         ]);
       case Steps.username:
-        return getPage("What is your username?", null, [
+        return getPage(S.of(context).usernameQuestion, null, [
           FormBuilder(
             onChanged: () {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -469,7 +470,7 @@ class _SetupState extends State<Setup> {
               focusNode: focusNodes[Steps.username],
               onSubmitted: (_) => onFieldSubmitted(Steps.username),
               decoration: InputDecoration(
-                labelText: "Username",
+                labelText: S.of(context).username,
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.person),
               ),
@@ -481,7 +482,7 @@ class _SetupState extends State<Setup> {
           ),
         ]);
       case Steps.password:
-        return getPage("What is your password?", null, [
+        return getPage(S.of(context).passwordQuestion, null, [
           FormBuilder(
             initialValue: {Steps.password.name: formValues[Steps.password]},
             onChanged: () {
@@ -498,7 +499,7 @@ class _SetupState extends State<Setup> {
               focusNode: focusNodes[Steps.password],
               onSubmitted: (_) => onFieldSubmitted(Steps.password),
               decoration: InputDecoration(
-                labelText: "Password",
+                labelText: S.of(context).password,
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.password),
               ),
@@ -510,7 +511,7 @@ class _SetupState extends State<Setup> {
           ),
         ]);
       case Steps.finish:
-        return getPage("Done!", "You're all set 🎉", null);
+        return getPage(S.of(context).doneTitle, S.of(context).doneSub, null);
     }
   }
 

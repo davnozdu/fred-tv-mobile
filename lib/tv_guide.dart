@@ -9,6 +9,7 @@ import 'package:open_tv/error.dart';
 import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/settings.dart';
 import 'package:open_tv/player.dart';
+import 'package:open_tv/l10n/strings.dart';
 
 class _GuideRow {
   final Channel channel;
@@ -152,7 +153,7 @@ class _TvGuideState extends State<TvGuide> {
     for (final r in filtered) {
       final g = (r.channel.group ?? '').trim();
       if (g != lastGroup) {
-        items.add(_HeaderItem(g.isEmpty ? "Other" : g));
+        items.add(_HeaderItem(g.isEmpty ? "" : g));
         lastGroup = g;
       }
       items.add(_RowItem(r));
@@ -304,7 +305,7 @@ class _TvGuideState extends State<TvGuide> {
                     : _items.isEmpty
                     ? const Center(
                         child: Text(
-                          "No guide data",
+                          S.of(context).noGuideData,
                           style: TextStyle(color: Colors.white70),
                         ),
                       )
@@ -327,7 +328,7 @@ class _TvGuideState extends State<TvGuide> {
         onChanged: _onSearch,
         decoration: InputDecoration(
           isDense: true,
-          hintText: "Search channels…",
+          hintText: S.of(context).searchChannels,
           hintStyle: const TextStyle(color: Colors.white38),
           prefixIcon: const Icon(Icons.search, color: Colors.white54),
           filled: true,
@@ -403,7 +404,7 @@ class _TvGuideState extends State<TvGuide> {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         alignment: Alignment.centerLeft,
         child: Text(
-          item.name,
+          item.name.isEmpty ? S.of(context).other : item.name,
           style: const TextStyle(
             color: Colors.amber,
             fontSize: 13,

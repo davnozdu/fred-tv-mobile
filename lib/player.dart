@@ -10,6 +10,7 @@ import 'package:open_tv/models/id_data.dart';
 import 'package:open_tv/models/media_type.dart';
 import 'package:open_tv/models/settings.dart';
 import 'package:open_tv/select_dialog.dart';
+import 'package:open_tv/l10n/strings.dart';
 
 class _ControlAction {
   final IconData icon;
@@ -437,7 +438,7 @@ class _PlayerState extends State<Player> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => SelectDialog(
-        title: "Select audio",
+        title: S.of(context).selectAudio,
         action: (id) {
           _controller?.setAudioTrack(tracks[id]);
           Navigator.of(ctx).pop();
@@ -833,9 +834,9 @@ class _ArchiveSheetState extends State<_ArchiveSheet> {
             ListTile(
               autofocus: true,
               leading: const Icon(Icons.live_tv, color: Colors.red),
-              title: const Text(
-                "Live",
-                style: TextStyle(
+              title: Text(
+                S.of(context).live,
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -861,8 +862,8 @@ class _ArchiveSheetState extends State<_ArchiveSheet> {
               CircularProgressIndicator(color: Colors.white),
               SizedBox(height: 16),
               Text(
-                "Loading archive…",
-                style: TextStyle(color: Colors.white70),
+                S.of(context).loadingArchive,
+                style: const TextStyle(color: Colors.white70),
               ),
             ],
           ),
@@ -873,8 +874,8 @@ class _ArchiveSheetState extends State<_ArchiveSheet> {
     if (items.isEmpty) {
       return const Center(
         child: Text(
-          "No archive programmes for this channel",
-          style: TextStyle(color: Colors.white70),
+          S.of(context).noArchive,
+          style: const TextStyle(color: Colors.white70),
         ),
       );
     }

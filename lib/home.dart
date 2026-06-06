@@ -16,6 +16,7 @@ import 'package:open_tv/models/node.dart';
 import 'package:open_tv/models/node_type.dart';
 import 'package:open_tv/models/view_type.dart';
 import 'package:open_tv/error.dart';
+import 'package:open_tv/l10n/strings.dart';
 import 'package:open_tv/whats_new_modal.dart';
 
 class Home extends StatefulWidget {
@@ -243,7 +244,7 @@ class _HomeState extends State<Home> {
                             );
                           },
                           decoration: InputDecoration(
-                            hintText: "Search...",
+                            hintText: S.of(context).search,
                             hintStyle: TextStyle(
                               fontSize: Theme.of(
                                 context,

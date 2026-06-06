@@ -16,6 +16,7 @@ import 'package:open_tv/models/source.dart';
 import 'package:open_tv/models/source_type.dart';
 import 'package:open_tv/models/view_type.dart';
 import 'package:open_tv/error.dart';
+import 'package:open_tv/l10n/strings.dart';
 import 'package:open_tv/setup.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -83,7 +84,7 @@ class _SettingsState extends State<SettingsView> {
       context: context,
       builder: (BuildContext context) {
         return SelectDialog(
-          title: "Default view",
+          title: S.of(context).defaultView,
           data: ViewType.values
               .take(4)
               .map((x) => IdData(id: x.index, data: viewTypeToString(x)))
@@ -209,16 +210,20 @@ class _SettingsState extends State<SettingsView> {
   }
 
   Future<void> _showBufferDialog(BuildContext context) async {
+    final loc = S.of(context);
     const options = [0, 5, 15, 30, 60];
     showDialog(
       barrierDismissible: true,
       context: context,
       builder: (BuildContext context) {
         return SelectDialog(
-          title: "Buffer size",
+          title: loc.bufferSize,
           data: options
               .map(
-                (s) => IdData(id: s, data: s == 0 ? "Auto" : "$s seconds"),
+                (s) => IdData(
+                  id: s,
+                  data: s == 0 ? loc.auto : "$s ${loc.seconds}",
+                ),
               )
               .toList(),
           action: (seconds) {
@@ -234,12 +239,13 @@ class _SettingsState extends State<SettingsView> {
   }
 
   Future<void> _showEpgUrlDialog() async {
+    final s = S.of(context);
     final controller = TextEditingController(text: settings.epgUrl);
     await showDialog(
       barrierDismissible: true,
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("EPG URL"),
+        title: Text(s.epgUrl),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -251,7 +257,7 @@ class _SettingsState extends State<SettingsView> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("Cancel"),
+            child: Text(s.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -259,7 +265,7 @@ class _SettingsState extends State<SettingsView> {
               updateSettings();
               Navigator.of(ctx).pop();
             },
-            child: const Text("Save"),
+            child: Text(s.save),
           ),
         ],
       ),
@@ -268,6 +274,7 @@ class _SettingsState extends State<SettingsView> {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return Scaffold(
       body: Visibility(
         visible: !loading,
@@ -278,11 +285,11 @@ class _SettingsState extends State<SettingsView> {
               child: ListView(
                 children: [
                   const SizedBox(height: 10),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 10),
                     child: Text(
-                      'Settings',
-                      style: TextStyle(
+                      s.settings,
+                      style: const TextStyle(
                         fontSize: 30,
                         fontWeight: FontWeight.bold,
                       ),
@@ -290,7 +297,7 @@ class _SettingsState extends State<SettingsView> {
                   ),
                   const SizedBox(height: 10),
                   ListTile(
-                    title: const Text("Donate"),
+                    title: Text(s.donate),
                     subtitle: const Text(
                       "Fred TV needs your help! Consider donating ❤️",
                     ),
@@ -302,12 +309,12 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: const Text("Default view"),
+                    title: Text(s.defaultView),
                     subtitle: Text(viewTypeToString(settings.defaultView)),
                     onTap: () async => await _showDefaultViewDialog(context),
                   ),
                   ListTile(
-                    title: const Text("Force TV Mode"),
+                    title: Text(s.forceTvMode),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -324,10 +331,8 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: const Text("Low latency livestreams"),
-                    subtitle: const Text(
-                      "Minimal delay, smaller buffer (may stutter on weak networks)",
-                    ),
+                    title: Text(s.lowLatency),
+                    subtitle: Text(s.lowLatencySub),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -345,19 +350,17 @@ class _SettingsState extends State<SettingsView> {
                   ),
                   ListTile(
                     enabled: !settings.lowLatency,
-                    title: const Text("Buffer size"),
+                    title: Text(s.bufferSize),
                     subtitle: Text(
                       settings.bufferSeconds <= 0
-                          ? "Auto — grows when the stream stalls"
-                          : "${settings.bufferSeconds} seconds — larger = more stable HD",
+                          ? s.bufferAutoSub
+                          : s.bufferSecondsSub(settings.bufferSeconds),
                     ),
                     onTap: () async => await _showBufferDialog(context),
                   ),
                   ListTile(
-                    title: const Text("Extended archive (7 days)"),
-                    subtitle: const Text(
-                      "More history via iptvx.one — slower first open (default: 1 day)",
-                    ),
+                    title: Text(s.extendedArchive),
+                    subtitle: Text(s.extendedArchiveSub),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -374,7 +377,7 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: const Text("Refresh sources on start"),
+                    title: Text(s.refreshOnStart),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -391,7 +394,7 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: const Text("Show livestreams"),
+                    title: Text(s.showLivestreams),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -408,7 +411,7 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: const Text("Show movies"),
+                    title: Text(s.showMovies),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -425,7 +428,7 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: const Text("Show series"),
+                    title: Text(s.showSeries),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -442,10 +445,8 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: const Text("Fill logos from EPG"),
-                    subtitle: const Text(
-                      "Use an EPG (XMLTV) source to fill missing channel logos",
-                    ),
+                    title: Text(s.fillLogos),
+                    subtitle: Text(s.fillLogosSub),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -463,9 +464,9 @@ class _SettingsState extends State<SettingsView> {
                   ),
                   ListTile(
                     enabled: settings.fillLogosFromEpg,
-                    title: const Text("EPG URL"),
+                    title: Text(s.epgUrl),
                     subtitle: Text(
-                      settings.epgUrl.isEmpty ? "Not set" : settings.epgUrl,
+                      settings.epgUrl.isEmpty ? s.notSet : settings.epgUrl,
                     ),
                     onTap: () async => await _showEpgUrlDialog(),
                   ),
@@ -473,11 +474,11 @@ class _SettingsState extends State<SettingsView> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.only(left: 10),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 10),
                         child: Text(
-                          'Sources',
-                          style: TextStyle(
+                          s.sources,
+                          style: const TextStyle(
                             fontSize: 30,
                             fontWeight: FontWeight.bold,
                           ),

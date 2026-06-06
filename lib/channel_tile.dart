@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:marquee/marquee.dart';
 import 'package:open_tv/backend/epg.dart';
+import 'package:open_tv/l10n/strings.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/backend/xtream.dart';
@@ -76,7 +77,7 @@ class _ChannelTileState extends State<ChannelTile> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            newValue ? "Added to favorites" : "Removed from favorites",
+            newValue ? S.of(context).addedToFavorites : S.of(context).removedFromFavorites,
           ),
           duration: const Duration(milliseconds: 500),
         ),
@@ -113,9 +114,9 @@ class _ChannelTileState extends State<ChannelTile> {
               ListTile(
                 autofocus: true,
                 leading: const Icon(Icons.play_arrow, color: Colors.white),
-                title: const Text(
-                  "Play",
-                  style: TextStyle(color: Colors.white),
+                title: Text(
+                  S.of(ctx).play,
+                  style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -129,8 +130,8 @@ class _ChannelTileState extends State<ChannelTile> {
                 ),
                 title: Text(
                   widget.channel.favorite
-                      ? "Remove from Favorites"
-                      : "Add to Favorites",
+                      ? S.of(ctx).removeFromFavorites
+                      : S.of(ctx).addToFavorites,
                   style: const TextStyle(color: Colors.white),
                 ),
                 onTap: () {
@@ -192,29 +193,45 @@ class _ChannelTileState extends State<ChannelTile> {
       builder: (_, map, __) {
         final title = map[normalizeChannelName(widget.channel.name)];
         if (title == null || title.isEmpty) return const SizedBox.shrink();
-        const style = TextStyle(color: Colors.white70, fontSize: 12);
-        // Only the focused tile scrolls — keeps the list light on weak boxes.
+        const style = TextStyle(
+          color: Colors.white70,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        );
         return Padding(
-          padding: const EdgeInsets.only(top: 2),
+          padding: const EdgeInsets.only(top: 3),
           child: SizedBox(
-            height: 16,
-            child: _focusNode.hasFocus
-                ? Marquee(
+            height: 22,
+            child: LayoutBuilder(
+              builder: (ctx, constraints) {
+                final tp = TextPainter(
+                  text: TextSpan(text: title, style: style),
+                  maxLines: 1,
+                  textDirection: TextDirection.ltr,
+                )..layout();
+                final overflows = tp.width > constraints.maxWidth;
+                // Scroll only when the text doesn't fit AND the tile is focused
+                // (keeps the list light on weak boxes).
+                if (overflows && _focusNode.hasFocus) {
+                  return Marquee(
                     text: title,
                     style: style,
-                    velocity: 28,
-                    blankSpace: 50,
+                    velocity: 30,
+                    blankSpace: 60,
                     startPadding: 0,
-                    pauseAfterRound: const Duration(milliseconds: 1200),
+                    pauseAfterRound: const Duration(milliseconds: 1500),
                     accelerationDuration: const Duration(milliseconds: 300),
                     decelerationDuration: const Duration(milliseconds: 300),
-                  )
-                : Text(
-                    title,
-                    style: style,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  );
+                }
+                return Text(
+                  title,
+                  style: style,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                );
+              },
+            ),
           ),
         );
       },

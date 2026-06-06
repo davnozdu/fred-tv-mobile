@@ -7,6 +7,7 @@ import 'package:open_tv/models/view_type.dart';
 import 'package:open_tv/settings_view.dart';
 import 'package:open_tv/tv_categories.dart';
 import 'package:open_tv/tv_guide.dart';
+import 'package:open_tv/l10n/strings.dart';
 
 class TvHome extends StatelessWidget {
   const TvHome({super.key});
@@ -40,6 +41,7 @@ class TvHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -50,7 +52,7 @@ class TvHome extends StatelessWidget {
                 MenuTile(
                   autofocus: true,
                   icon: Icons.tv,
-                  label: "Channels",
+                  label: s.channels,
                   color: const LinearGradient(
                     colors: [Colors.blueGrey, Colors.blue],
                     begin: Alignment.topLeft,
@@ -60,7 +62,7 @@ class TvHome extends StatelessWidget {
                 ),
                 MenuTile(
                   icon: Icons.grid_view,
-                  label: "Guide",
+                  label: s.guide,
                   color: const LinearGradient(
                     colors: [Colors.indigo, Colors.deepPurple],
                     begin: Alignment.topLeft,
@@ -70,7 +72,7 @@ class TvHome extends StatelessWidget {
                 ),
                 MenuTile(
                   icon: Icons.star,
-                  label: "Favorites",
+                  label: s.favorites,
                   color: LinearGradient(
                     colors: [Colors.orange.shade700, Colors.amber.shade400],
                     begin: Alignment.topLeft,
@@ -83,7 +85,7 @@ class TvHome extends StatelessWidget {
                 ),
                 MenuTile(
                   icon: Icons.history,
-                  label: "History",
+                  label: s.history,
                   color: LinearGradient(
                     colors: [Colors.teal.shade700, Colors.green.shade400],
                     begin: Alignment.topLeft,
@@ -96,7 +98,7 @@ class TvHome extends StatelessWidget {
                 ),
                 MenuTile(
                   icon: Icons.settings,
-                  label: "Settings",
+                  label: s.settings,
                   color: LinearGradient(
                     colors: [
                       Colors.blueGrey.shade800,

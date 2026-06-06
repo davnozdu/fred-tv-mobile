@@ -8,6 +8,7 @@ import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/filters.dart';
 import 'package:open_tv/models/home_manager.dart';
 import 'package:open_tv/models/view_type.dart';
+import 'package:open_tv/l10n/strings.dart';
 
 /// "Channels" screen for TV: shows an "All" tile plus one tile per playlist
 /// category (group). Tapping "All" opens every channel, tapping a category
@@ -69,7 +70,7 @@ class _TvCategoriesState extends State<TvCategories> {
       MenuTile(
         autofocus: true,
         icon: Icons.list,
-        label: "All",
+        label: S.of(context).all,
         color: const LinearGradient(
           colors: [Colors.blueGrey, Colors.blue],
           begin: Alignment.topLeft,
