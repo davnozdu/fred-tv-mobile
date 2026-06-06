@@ -52,8 +52,6 @@ class S {
     'Немає архівних передач для цього каналу',
   );
   String get selectAudio => _t('Select audio', 'Выбор аудио', 'Вибір аудіо');
-  String get selectSubtitles =>
-      _t('Select subtitles', 'Выбор субтитров', 'Вибір субтитрів');
 
   // Channel context menu
   String get play => _t('Play', 'Смотреть', 'Дивитися');
@@ -142,12 +140,6 @@ class S {
     'Обновлять источники при запуске',
     'Оновлювати джерела під час запуску',
   );
-  String get showLivestreams =>
-      _t('Show livestreams', 'Показывать эфиры', 'Показувати ефіри');
-  String get showMovies =>
-      _t('Show movies', 'Показывать фильмы', 'Показувати фільми');
-  String get showSeries =>
-      _t('Show series', 'Показывать сериалы', 'Показувати серіали');
   String get sources => _t('Sources', 'Источники', 'Джерела');
   String get addPlaylist =>
       _t('Add playlist', 'Добавить плейлист', 'Додати плейлист');
@@ -293,11 +285,6 @@ class S {
       _t('Edit source $name', 'Изменить источник $name', 'Змінити джерело $name');
 
   // Validators / misc
-  String get fieldRequired => _t(
-    'This field is required',
-    'Это поле обязательно',
-    'Це поле обовʼязкове',
-  );
   String get settingsDisabledRefreshing => _t(
     'Settings disabled while refreshing on start',
     'Настройки недоступны во время обновления при запуске',
