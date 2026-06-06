@@ -105,6 +105,8 @@ Future<String?> setPinDialog(BuildContext context) async {
       ),
     ),
   );
+  a.dispose();
+  b.dispose();
   return result;
 }
 
@@ -153,5 +155,6 @@ Future<bool> verifyPinDialog(
       ),
     ),
   );
+  a.dispose();
   return ok ?? false;
 }

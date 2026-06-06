@@ -124,6 +124,7 @@ class _HomeState extends State<Home> {
   void dispose() {
     _scrollController.dispose();
     _searchFocus.dispose();
+    searchController.dispose();
     _debounce?.cancel();
     super.dispose();
   }

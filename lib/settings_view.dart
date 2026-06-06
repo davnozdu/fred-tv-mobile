@@ -472,6 +472,7 @@ class _SettingsState extends State<SettingsView> {
         ],
       ),
     );
+    controller.dispose();
   }
 
   @override
