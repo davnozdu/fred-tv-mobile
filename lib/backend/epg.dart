@@ -108,20 +108,75 @@ Future<Map<String, String>> fetchEpgLogos(String epgUrl) async {
 }
 
 // Cache for the full guide (all channels' programmes in a time window).
+// Kept in memory (45 min) and mirrored to disk (6 h) so re-opening the guide —
+// or a cold start — neither re-downloads nor re-parses. All heavy work
+// (download, gzip, parse, JSON encode/decode) happens in a background isolate.
 Map<String, List<EpgProgram>>? _allPrograms;
+String? _allProgramsUrl;
 DateTime? _allProgramsAt;
+// In-flight parse, so the catalog and the guide asking at the same time share
+// a single download/parse instead of triggering two.
+Future<Map<String, List<EpgProgram>>>? _guideInflight;
+String? _guideInflightUrl;
+const _guideMemTtl = Duration(minutes: 45);
+const _guideDiskTtl = Duration(hours: 6);
+
+Future<File> _guideCacheFile(String url) async {
+  final dir = await getTemporaryDirectory();
+  return File('${dir.path}/epg_guide_${url.hashCode}.json');
+}
 
 /// Returns programmes for every channel (normalized name -> programmes in a
-/// window around now), for the TV guide grid. Parsed in a background isolate.
+/// window around now), for the TV guide grid and the catalog "now playing".
+/// Memory cache -> disk cache -> background parse (in that order).
 Future<Map<String, List<EpgProgram>>> fetchAllPrograms(String epgUrl) async {
   final url = epgUrl.trim();
   if (url.isEmpty) return {};
+  // 1) Fresh in-memory result for this exact source.
   if (_allPrograms != null &&
+      _allProgramsUrl == url &&
       _allProgramsAt != null &&
-      DateTime.now().difference(_allProgramsAt!) < const Duration(minutes: 15)) {
+      DateTime.now().difference(_allProgramsAt!) < _guideMemTtl) {
     return _allPrograms!;
   }
-  final data = await compute(_parseAllPrograms, url);
+  // Coalesce concurrent requests for the same source.
+  if (_guideInflight != null && _guideInflightUrl == url) {
+    return _guideInflight!;
+  }
+  final future = _loadGuide(url);
+  _guideInflight = future;
+  _guideInflightUrl = url;
+  try {
+    return await future;
+  } finally {
+    if (identical(_guideInflight, future)) {
+      _guideInflight = null;
+      _guideInflightUrl = null;
+    }
+  }
+}
+
+Future<Map<String, List<EpgProgram>>> _loadGuide(String url) async {
+  // 2) Recent on-disk copy (decoded in a background isolate).
+  final fromDisk = await _readGuideDisk(url);
+  if (fromDisk != null) {
+    _allPrograms = fromDisk;
+    _allProgramsUrl = url;
+    _allProgramsAt = DateTime.now();
+    return fromDisk;
+  }
+  // 3) Download + parse + persist — all inside the isolate.
+  final cachePath = (await _guideCacheFile(url)).path;
+  final data = await compute(_parseAllPrograms, {'url': url, 'cache': cachePath});
+  final result = _buildGuide(data);
+  _allPrograms = result;
+  _allProgramsUrl = url;
+  _allProgramsAt = DateTime.now();
+  return result;
+}
+
+// Builds the name -> programmes map from the isolate's id-keyed output.
+Map<String, List<EpgProgram>> _buildGuide(Map data) {
   final namesById = data['names'] as Map;
   final progsById = data['progs'] as Map;
   final result = <String, List<EpgProgram>>{};
@@ -135,13 +190,39 @@ Future<Map<String, List<EpgProgram>>> fetchAllPrograms(String epgUrl) async {
       result[name as String] = programs;
     }
   });
-  _allPrograms = result;
-  _allProgramsAt = DateTime.now();
   return result;
 }
 
-// Isolate: parse all channels' programmes in [now-6h, now+30h].
-Future<Map<String, dynamic>> _parseAllPrograms(String epgUrl) async {
+// Reads & decodes the on-disk guide in a background isolate (if fresh enough).
+Future<Map<String, List<EpgProgram>>?> _readGuideDisk(String url) async {
+  try {
+    final f = await _guideCacheFile(url);
+    if (!await f.exists()) return null;
+    if (DateTime.now().difference(await f.lastModified()) > _guideDiskTtl) {
+      return null;
+    }
+    final raw = await compute(_decodeGuideFile, f.path);
+    if (raw == null) return null;
+    return _buildGuide(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+// Isolate: read the cached JSON file off the UI thread.
+Map<String, dynamic>? _decodeGuideFile(String path) {
+  try {
+    final data = jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>;
+    return {'names': data['names'], 'progs': data['progs']};
+  } catch (_) {
+    return null;
+  }
+}
+
+// Isolate: parse all channels' programmes in [now-6h, now+30h] and cache to disk.
+Future<Map<String, dynamic>> _parseAllPrograms(Map<String, String> args) async {
+  final epgUrl = args['url']!;
+  final cachePath = args['cache'];
   final client = http.Client();
   try {
     final response = await client.send(http.Request('GET', Uri.parse(epgUrl)));
@@ -195,14 +276,23 @@ Future<Map<String, dynamic>> _parseAllPrograms(String epgUrl) async {
         (idProgs[ch] ??= []).add({'s': sMs, 'e': eMs, 't': _unescapeXml(title)});
       }
     }
-    return {'names': idNames, 'progs': idProgs};
+    final out = {'names': idNames, 'progs': idProgs};
+    // Persist for fast cold starts (best-effort, still inside the isolate).
+    if (cachePath != null) {
+      try {
+        File(cachePath).writeAsStringSync(jsonEncode(out));
+      } catch (_) {}
+    }
+    return out;
   } finally {
     client.close();
   }
 }
 
-/// Refreshes the global "now playing" map (normalized name -> current title)
-/// from the logo EPG, in the background. Cached for 15 minutes.
+/// Refreshes the global "now playing" map (normalized name -> current title).
+/// Derived from the shared guide cache — no separate download/parse — so the
+/// catalog marquee and the Guide reuse one background parse. Re-derive guarded
+/// to 15 min (cheap; the underlying guide is cached 45 min / 6 h on disk).
 Future<void> refreshNowPlaying(String epgUrl) async {
   final url = epgUrl.trim();
   if (url.isEmpty) return;
@@ -212,81 +302,25 @@ Future<void> refreshNowPlaying(String epgUrl) async {
     return;
   }
   try {
-    final map = await compute(_parseNowPlaying, url);
-    nowPlaying.value = map;
+    final guide = await fetchAllPrograms(url);
+    nowPlaying.value = _deriveNowPlaying(guide);
     nowPlayingAt = DateTime.now();
   } catch (_) {}
 }
 
-// Runs in a background isolate: returns normalized name -> currently airing title.
-Future<Map<String, String>> _parseNowPlaying(String epgUrl) async {
-  final client = http.Client();
-  try {
-    final response = await client.send(http.Request('GET', Uri.parse(epgUrl)));
-    if (response.statusCode != 200) {
-      throw Exception('Failed to download EPG: ${response.statusCode}');
-    }
-    Stream<List<int>> bytes = response.stream;
-    if (epgUrl.endsWith('.gz')) {
-      bytes = bytes.transform(gzip.decoder);
-    }
-    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
-    final idToNames = <String, List<String>>{};
-    final idToTitle = <String, String>{};
-    final current = StringBuffer();
-    await for (final line in bytes
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())) {
-      current.writeln(line);
-      if (line.contains('</channel>')) {
-        final block = current.toString();
-        current.clear();
-        final id = _channelIdRegex.firstMatch(block)?.group(1);
-        if (id != null) {
-          final names = <String>[];
-          // Loose normalization (same as the guide grid) so the catalog marquee
-          // and the Guide map a channel to the same EPG entry → same programme.
-          for (final dn in _displayNameRegex.allMatches(block)) {
-            final k = normalizeChannelNameLoose(
-              (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
-            );
-            if (k.isNotEmpty) names.add(k);
-          }
-          if (names.isNotEmpty) idToNames[id] = names;
-        }
-      } else if (line.contains('</programme>')) {
-        final block = current.toString();
-        current.clear();
-        final ch = _progChannelRegex.firstMatch(block)?.group(1);
-        if (ch == null ||
-            !idToNames.containsKey(ch) ||
-            idToTitle.containsKey(ch)) {
-          continue;
-        }
-        final sm = _progStartRegex.firstMatch(block);
-        final em = _progStopRegex.firstMatch(block);
-        if (sm == null || em == null) continue;
-        final start = _parseXmltvTime(sm.group(1)!, sm.group(2));
-        final stop = _parseXmltvTime(em.group(1)!, em.group(2));
-        if (start.millisecondsSinceEpoch <= nowMs &&
-            nowMs < stop.millisecondsSinceEpoch) {
-          final title = (_titleRegex.firstMatch(block)?.group(1) ?? '')
-              .replaceAll(_tagRegex, '')
-              .trim();
-          idToTitle[ch] = _unescapeXml(title);
-        }
+// Picks the currently-airing title per channel from the parsed guide.
+Map<String, String> _deriveNowPlaying(Map<String, List<EpgProgram>> guide) {
+  final now = DateTime.now().toUtc();
+  final out = <String, String>{};
+  guide.forEach((name, programs) {
+    for (final p in programs) {
+      if (!p.start.isAfter(now) && p.stop.isAfter(now)) {
+        if (p.title.isNotEmpty) out[name] = p.title;
+        break;
       }
     }
-    final result = <String, String>{};
-    idToTitle.forEach((id, title) {
-      for (final name in idToNames[id] ?? const <String>[]) {
-        result[name] = title;
-      }
-    });
-    return result;
-  } finally {
-    client.close();
-  }
+  });
+  return out;
 }
 
 /// A single EPG programme (times in UTC).
