@@ -15,10 +15,11 @@ import 'package:open_tv/models/settings.dart';
 import 'package:open_tv/models/source.dart';
 import 'package:open_tv/models/source_type.dart';
 import 'package:open_tv/models/view_type.dart';
+import 'package:open_tv/backend/updater.dart';
 import 'package:open_tv/error.dart';
 import 'package:open_tv/l10n/strings.dart';
+import 'package:open_tv/main.dart';
 import 'package:open_tv/setup.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class SettingsView extends StatefulWidget {
   final bool showNavBar;
@@ -78,6 +79,22 @@ class _SettingsState extends State<SettingsView> {
     );
   }
 
+  String _viewLabel(BuildContext context, ViewType v) {
+    final s = S.of(context);
+    switch (v) {
+      case ViewType.all:
+        return s.all;
+      case ViewType.categories:
+        return s.categories;
+      case ViewType.favorites:
+        return s.favorites;
+      case ViewType.history:
+        return s.history;
+      default:
+        return s.all;
+    }
+  }
+
   Future<void> _showDefaultViewDialog(BuildContext context) async {
     showDialog(
       barrierDismissible: true,
@@ -87,7 +104,7 @@ class _SettingsState extends State<SettingsView> {
           title: S.of(context).defaultView,
           data: ViewType.values
               .take(4)
-              .map((x) => IdData(id: x.index, data: viewTypeToString(x)))
+              .map((x) => IdData(id: x.index, data: _viewLabel(context, x)))
               .toList(),
           action: (view) {
             setState(() {
@@ -110,7 +127,7 @@ class _SettingsState extends State<SettingsView> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("Source ${!source.enabled ? "enabled" : "disabled"}"),
+        content: Text(S.of(context).sourceToggled(!source.enabled)),
         duration: const Duration(milliseconds: 500),
       ),
     );
@@ -144,7 +161,7 @@ class _SettingsState extends State<SettingsView> {
                       await Utils.refreshSource(source);
                     },
                     context,
-                    "Source has been refreshed successfully",
+                    S.of(context).sourceRefreshed,
                   );
                 },
               ),
@@ -171,13 +188,13 @@ class _SettingsState extends State<SettingsView> {
       barrierDismissible: true,
       context: context,
       builder: (builder) => ConfirmDelete(
-        type: "source",
+        type: S.of(context).sourceType,
         name: source.name,
         confirm: () async {
           await Error.tryAsync(
             () async => await Sql.deleteSource(source.id!),
             context,
-            "Successfully deleted source",
+            S.of(context).sourceDeleted,
           );
           await reloadSources();
           if (sources.isEmpty) {
@@ -297,20 +314,16 @@ class _SettingsState extends State<SettingsView> {
                   ),
                   const SizedBox(height: 10),
                   ListTile(
-                    title: Text(s.donate),
-                    subtitle: const Text(
-                      "Fred TV needs your help! Consider donating ❤️",
-                    ),
-                    onTap: () async => await launchUrl(
-                      Uri.parse(
-                        "https://github.com/Fredolx/fred-tv-mobile/discussions/1",
-                      ),
-                      mode: LaunchMode.externalApplication,
+                    leading: const Icon(Icons.system_update),
+                    title: Text(s.checkUpdate),
+                    onTap: () => Updater.checkAndPrompt(
+                      MyApp.navigatorKey,
+                      manual: true,
                     ),
                   ),
                   ListTile(
                     title: Text(s.defaultView),
-                    subtitle: Text(viewTypeToString(settings.defaultView)),
+                    subtitle: Text(_viewLabel(context, settings.defaultView)),
                     onTap: () async => await _showDefaultViewDialog(context),
                   ),
                   ListTile(
@@ -490,7 +503,7 @@ class _SettingsState extends State<SettingsView> {
                             onPressed: () async => await Error.tryAsync(
                               () async => await Utils.refreshAllSources(),
                               context,
-                              "Successfully refreshed all sources",
+                              S.of(context).sourcesRefreshed,
                             ),
                             icon: const Icon(Icons.refresh),
                           ),

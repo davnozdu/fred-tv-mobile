@@ -6,6 +6,7 @@ import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/source.dart';
 import 'package:open_tv/models/source_type.dart';
 import 'package:open_tv/error.dart';
+import 'package:open_tv/l10n/strings.dart';
 
 class EditDialog extends StatefulWidget {
   final Source source;
@@ -24,7 +25,7 @@ class _EditDialogState extends State<EditDialog> {
     return Center(
         child: SingleChildScrollView(
             child: AlertDialog(
-      title: Text("Edit source ${widget.source.name}"),
+      title: Text(S.of(context).editSource(widget.source.name)),
       actions: [
         TextButton(
             onPressed: () async {
@@ -47,10 +48,10 @@ class _EditDialogState extends State<EditDialog> {
                   context);
               await widget.afterSave();
             },
-            child: const Text("Save")),
+            child: Text(S.of(context).save)),
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Cancel"))
+            child: Text(S.of(context).cancel))
       ],
       content: FormBuilder(
           key: _formKey,
@@ -63,10 +64,10 @@ class _EditDialogState extends State<EditDialog> {
                 autovalidateMode: AutovalidateMode.onUserInteraction,
                 validator: FormBuilderValidators.compose(
                     [FormBuilderValidators.required()]),
-                decoration: const InputDecoration(
-                  labelText: 'Url',
-                  prefixIcon: Icon(Icons.link),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: S.of(context).url,
+                  prefixIcon: const Icon(Icons.link),
+                  border: const OutlineInputBorder(),
                 ),
                 name: 'url',
               ),
@@ -80,10 +81,10 @@ class _EditDialogState extends State<EditDialog> {
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     validator: FormBuilderValidators.compose(
                         [FormBuilderValidators.required()]),
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      prefixIcon: Icon(Icons.account_circle),
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: S.of(context).username,
+                      prefixIcon: const Icon(Icons.account_circle),
+                      border: const OutlineInputBorder(),
                     ),
                     name: 'username',
                   )),
@@ -97,10 +98,10 @@ class _EditDialogState extends State<EditDialog> {
                     autovalidateMode: AutovalidateMode.onUserInteraction,
                     validator: FormBuilderValidators.compose(
                         [FormBuilderValidators.required()]),
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: Icon(Icons.password),
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: S.of(context).password,
+                      prefixIcon: const Icon(Icons.password),
+                      border: const OutlineInputBorder(),
                     ),
                     name: 'password',
                   )),

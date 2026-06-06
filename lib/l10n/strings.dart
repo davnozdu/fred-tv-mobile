@@ -73,7 +73,21 @@ class S {
   );
 
   // Settings
-  String get donate => _t('Donate', 'Поддержать', 'Підтримати');
+  String get checkUpdate => _t(
+    'Check for updates',
+    'Проверить обновления',
+    'Перевірити оновлення',
+  );
+  String get upToDate => _t(
+    'You have the latest version',
+    'У вас последняя версия',
+    'У вас остання версія',
+  );
+  String get checkFailed => _t(
+    'Update check failed',
+    'Не удалось проверить обновления',
+    'Не вдалося перевірити оновлення',
+  );
   String get defaultView =>
       _t('Default view', 'Вид по умолчанию', 'Вигляд за замовчуванням');
   String get forceTvMode => _t(
@@ -200,4 +214,94 @@ class S {
       _t("You're all set 🎉", 'Всё настроено 🎉', 'Усе налаштовано 🎉');
   String get nameExists =>
       _t('Name already exists', 'Название уже занято', 'Назва вже зайнята');
+
+  // View types (default view dialog)
+  String get categories => _t('Categories', 'Категории', 'Категорії');
+
+  // Confirm delete
+  String get confirmDeletion =>
+      _t('Confirm deletion', 'Подтвердите удаление', 'Підтвердьте видалення');
+  String get confirm => _t('Confirm', 'Подтвердить', 'Підтвердити');
+  String deleteWhat(String type, String name) => _t(
+    'You are about to delete $type "$name"',
+    'Вы собираетесь удалить $type «$name»',
+    'Ви збираєтеся видалити $type «$name»',
+  );
+  String get sourceType => _t('source', 'источник', 'джерело');
+
+  // Edit source
+  String editSource(String name) =>
+      _t('Edit source $name', 'Изменить источник $name', 'Змінити джерело $name');
+
+  // Validators / misc
+  String get fieldRequired => _t(
+    'This field is required',
+    'Это поле обязательно',
+    'Це поле обовʼязкове',
+  );
+  String get settingsDisabledRefreshing => _t(
+    'Settings disabled while refreshing on start',
+    'Настройки недоступны во время обновления при запуске',
+    'Налаштування недоступні під час оновлення під час запуску',
+  );
+  String get scrollToTop => _t('Scroll to Top', 'Наверх', 'Догори');
+
+  // Success snackbars
+  String get sourceRefreshed => _t(
+    'Source has been refreshed successfully',
+    'Источник успешно обновлён',
+    'Джерело успішно оновлено',
+  );
+  String get sourcesRefreshed => _t(
+    'Successfully refreshed all sources',
+    'Все источники успешно обновлены',
+    'Усі джерела успішно оновлено',
+  );
+  String get sourceDeleted => _t(
+    'Successfully deleted source',
+    'Источник успешно удалён',
+    'Джерело успішно видалено',
+  );
+  String sourceToggled(bool enabled) => enabled
+      ? _t('Source enabled', 'Источник включён', 'Джерело увімкнено')
+      : _t('Source disabled', 'Источник выключен', 'Джерело вимкнено');
+
+  // Correction modal
+  String get correctUrlTitle => _t(
+    'Is this the right URL?',
+    'Это правильный URL?',
+    'Це правильний URL?',
+  );
+  String get proceedAnyway =>
+      _t('Proceed anyway', 'Всё равно продолжить', 'Усе одно продовжити');
+  String get correctUrlAuto => _t(
+    'Correct URL automatically',
+    'Исправить URL автоматически',
+    'Виправити URL автоматично',
+  );
+  String get correctUrlBody => _t(
+    'It seems your URL is not pointing to an Xtream API server. The URL can be corrected automatically.',
+    'Похоже, ваш URL не указывает на Xtream API сервер. URL можно исправить автоматически.',
+    'Схоже, ваш URL не вказує на Xtream API сервер. URL можна виправити автоматично.',
+  );
+
+  // Error dialog
+  String get errorTitle => _t(
+    "An error occurred. Tap 'Details' for more information",
+    'Произошла ошибка. Нажмите «Детали» для подробностей',
+    'Сталася помилка. Натисніть «Деталі» для подробиць',
+  );
+  String get errorDetailsBody => _t(
+    'The following error occurred. If it persists, please report it.\n',
+    'Произошла следующая ошибка. Если она повторяется, сообщите о ней.\n',
+    'Сталася наступна помилка. Якщо вона повторюється, повідомте про неї.\n',
+  );
+  String get reportIssue =>
+      _t('Report issue', 'Сообщить о проблеме', 'Повідомити про проблему');
+  String get details => _t('Details', 'Детали', 'Деталі');
+  String get actionCompleted => _t(
+    'Action completed successfully',
+    'Действие выполнено успешно',
+    'Дію виконано успішно',
+  );
 }

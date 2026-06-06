@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:loader_overlay/loader_overlay.dart';
+import 'package:open_tv/l10n/strings.dart';
 import 'package:open_tv/models/result.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,12 +11,12 @@ class Error {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             backgroundColor: Colors.red[700],
-            content: const Text(
-              "An error occured. Click on 'Details' for more information",
-              style: TextStyle(color: Colors.white),
+            content: Text(
+              S.of(context).errorTitle,
+              style: const TextStyle(color: Colors.white),
             ),
             action: SnackBarAction(
-                label: 'Details',
+                label: S.of(context).details,
                 textColor: Colors.white,
                 onPressed: () async => {
                       await showDialog(
@@ -26,8 +27,7 @@ class Error {
                                 content: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Text(
-                                        "The following error occured. If this error persists, please report it.\n"),
+                                    Text(S.of(context).errorDetailsBody),
                                     Container(
                                         width: double.infinity,
                                         padding: const EdgeInsets.all(
@@ -54,10 +54,10 @@ class Error {
                                           .textTheme
                                           .labelLarge,
                                     ),
-                                    child: const Text('Report issue'),
+                                    child: Text(S.of(context).reportIssue),
                                     onPressed: () async {
                                       final Uri url = Uri.parse(
-                                          'https://github.com/fredolx/fred-tv-mobile/issues/new?template=Blank+issue');
+                                          'https://github.com/davnozdu/smotrim-player/issues/new');
                                       await launchUrl(url,
                                           mode: LaunchMode.externalApplication);
                                     },
@@ -101,7 +101,7 @@ class Error {
 
   static Future<Result<T>> tryAsync<T>(
       Future<T?> Function() fn, BuildContext context,
-      [String? successMessage = "Action completed successfully",
+      [String? successMessage,
       bool useLoading = true,
       bool useSuccess = true]) async {
     var success = false;
@@ -111,7 +111,9 @@ class Error {
     }
     try {
       result = await fn();
-      if (useSuccess) showSuccess(context, successMessage!);
+      if (useSuccess && context.mounted) {
+        showSuccess(context, successMessage ?? S.of(context).actionCompleted);
+      }
       success = true;
     } catch (e, stackTrace) {
       final error = "${e.toString()}\n${stackTrace.toString()}";

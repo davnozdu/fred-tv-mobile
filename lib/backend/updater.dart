@@ -13,7 +13,10 @@ import 'package:open_tv/l10n/strings.dart';
 class Updater {
   static const String repo = "davnozdu/smotrim-player";
 
-  static Future<void> checkAndPrompt(GlobalKey<NavigatorState> navKey) async {
+  static Future<void> checkAndPrompt(
+    GlobalKey<NavigatorState> navKey, {
+    bool manual = false,
+  }) async {
     try {
       final info = await PackageInfo.fromPlatform();
       final current = info.version;
@@ -23,17 +26,26 @@ class Updater {
             headers: {"Accept": "application/vnd.github+json"},
           )
           .timeout(const Duration(seconds: 10));
-      if (resp.statusCode != 200) return;
+      if (resp.statusCode != 200) {
+        if (manual) _notify(navKey, (s) => s.checkFailed);
+        return;
+      }
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final latest = (data["tag_name"] ?? "")
           .toString()
           .replaceAll(RegExp(r'^v'), '')
           .trim();
-      if (latest.isEmpty || !_isNewer(latest, current)) return;
+      if (latest.isEmpty || !_isNewer(latest, current)) {
+        if (manual) _notify(navKey, (s) => s.upToDate);
+        return;
+      }
 
       final assets = (data["assets"] as List?) ?? [];
       final apkUrl = _pickApk(assets);
-      if (apkUrl == null) return;
+      if (apkUrl == null) {
+        if (manual) _notify(navKey, (s) => s.checkFailed);
+        return;
+      }
 
       final ctx = navKey.currentContext;
       if (ctx == null || !ctx.mounted) return;
@@ -66,8 +78,20 @@ class Updater {
       if (accepted != true) return;
       await _downloadAndInstall(navKey, apkUrl, latest);
     } catch (_) {
+      if (manual) _notify(navKey, (s) => s.checkFailed);
       // Best-effort: never let an update check crash startup.
     }
+  }
+
+  static void _notify(
+    GlobalKey<NavigatorState> navKey,
+    String Function(S) pick,
+  ) {
+    final ctx = navKey.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    ScaffoldMessenger.of(
+      ctx,
+    ).showSnackBar(SnackBar(content: Text(pick(S.of(ctx)))));
   }
 
   static String? _pickApk(List assets) {

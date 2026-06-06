@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:open_tv/l10n/strings.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
@@ -66,10 +67,11 @@ class MyApp extends StatelessWidget {
       title: 'Smotrim CZ Player',
       navigatorKey: navigatorKey,
       supportedLocales: S.supportedLocales,
-      localizationsDelegates: const [
+      localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
+        FormBuilderLocalizations.delegate,
       ],
       builder: (context, child) {
         return CallbackShortcuts(

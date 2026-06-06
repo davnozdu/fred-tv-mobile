@@ -303,10 +303,10 @@ class _TvGuideState extends State<TvGuide> {
                         child: CircularProgressIndicator(color: Colors.white),
                       )
                     : _items.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           S.of(context).noGuideData,
-                          style: TextStyle(color: Colors.white70),
+                          style: const TextStyle(color: Colors.white70),
                         ),
                       )
                     : _buildGrid(),

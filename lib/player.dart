@@ -853,14 +853,14 @@ class _ArchiveSheetState extends State<_ArchiveSheet> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: Colors.white),
-              SizedBox(height: 16),
+              const CircularProgressIndicator(color: Colors.white),
+              const SizedBox(height: 16),
               Text(
                 S.of(context).loadingArchive,
                 style: const TextStyle(color: Colors.white70),
@@ -872,7 +872,7 @@ class _ArchiveSheetState extends State<_ArchiveSheet> {
     }
     final items = _items ?? [];
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           S.of(context).noArchive,
           style: const TextStyle(color: Colors.white70),

@@ -17,7 +17,6 @@ import 'package:open_tv/models/node_type.dart';
 import 'package:open_tv/models/view_type.dart';
 import 'package:open_tv/error.dart';
 import 'package:open_tv/l10n/strings.dart';
-import 'package:open_tv/whats_new_modal.dart';
 
 class Home extends StatefulWidget {
   final HomeManager home;
@@ -66,10 +65,6 @@ class _HomeState extends State<Home> {
     await load();
     // Fetch "now playing" for the catalog tiles in the background.
     SettingsService.getSettings().then((s) => refreshNowPlaying(s.epgUrl));
-    final String? version = await SettingsService.shouldShowWhatsNew();
-    if (widget.firstLaunch && version != null) {
-      await showWhatsNew(version);
-    }
     if (widget.refresh) {
       Error.tryAsyncNoLoading(
         () async {
@@ -80,19 +75,12 @@ class _HomeState extends State<Home> {
         },
         context,
         true,
-        "Refreshed all sources",
+        S.of(context).sourcesRefreshed,
       );
       setState(() {
         blockSettings = false;
       });
     }
-  }
-
-  Future<void> showWhatsNew(String version) async {
-    showDialog(
-      context: context,
-      builder: (context) => WhatsNewModal(version: version),
-    );
   }
 
   void scrollToTop() {
@@ -315,7 +303,7 @@ class _HomeState extends State<Home> {
           child: FloatingActionButton(
             onPressed: scrollToTop,
             shape: const CircleBorder(),
-            tooltip: 'Scroll to Top',
+            tooltip: S.of(context).scrollToTop,
             child: const Icon(Icons.arrow_upward),
           ),
         ),
