@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/category_colors.dart';
+import 'package:open_tv/category_icons.dart';
 import 'package:open_tv/error.dart';
 import 'package:open_tv/home.dart';
 import 'package:open_tv/menu_tile.dart';
@@ -109,9 +110,12 @@ class _TvCategoriesState extends State<TvCategories> {
     ];
     for (final group in groups) {
       final locked = _settings.categoryPins[group.name]?.isNotEmpty ?? false;
+      // Locked categories show a padlock; otherwise the matched category icon.
+      final asset = locked ? null : categoryIconAsset(group.name);
       tiles.add(
         MenuTile(
           icon: locked ? Icons.lock : Icons.folder,
+          imageAsset: asset,
           label: group.name,
           color: categoryGradient(group.name),
           onTap: () => _openCategory(group),

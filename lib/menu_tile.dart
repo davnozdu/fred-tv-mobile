@@ -6,6 +6,9 @@ class MenuTile extends StatefulWidget {
   final LinearGradient color;
   final VoidCallback onTap;
   final bool autofocus;
+  // Optional category icon image (assets/categories/*.png). When set, it is
+  // shown instead of [icon].
+  final String? imageAsset;
 
   const MenuTile({
     super.key,
@@ -14,6 +17,7 @@ class MenuTile extends StatefulWidget {
     required this.color,
     required this.onTap,
     this.autofocus = false,
+    this.imageAsset,
   });
 
   @override
@@ -62,25 +66,43 @@ class _MenuTileState extends State<MenuTile> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(widget.icon, color: Colors.white, size: 50),
-                const SizedBox(height: 10),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: Theme.of(
-                      context,
-                    ).textTheme.headlineSmall?.fontSize,
-                    fontWeight: FontWeight.w600,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black45,
-                        offset: Offset(0, 2),
-                        blurRadius: 2,
-                      ),
-                    ],
+                if (widget.imageAsset != null)
+                  Image.asset(
+                    widget.imageAsset!,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.medium,
+                    errorBuilder: (_, __, ___) =>
+                        Icon(widget.icon, color: Colors.white, size: 50),
+                  )
+                else
+                  Icon(widget.icon, color: Colors.white, size: 50),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    widget.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      // Smaller, bounded label for image (category) tiles so long
+                      // names don't overflow the tile.
+                      fontSize: widget.imageAsset != null
+                          ? Theme.of(context).textTheme.titleMedium?.fontSize
+                          : Theme.of(context).textTheme.headlineSmall?.fontSize,
+                      fontWeight: FontWeight.w600,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black45,
+                          offset: Offset(0, 2),
+                          blurRadius: 2,
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
