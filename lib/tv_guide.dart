@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:open_tv/backend/epg.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
+import 'package:open_tv/category_colors.dart';
 import 'package:open_tv/error.dart';
 import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/settings.dart';
@@ -93,6 +94,13 @@ class _TvGuideState extends State<TvGuide> {
       }
       return KeyEventResult.ignored;
     };
+    // Re-show the soft keyboard whenever the search box regains focus (on TV,
+    // pressing Back hides it and it would otherwise stay hidden).
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      }
+    });
     _load();
   }
 
@@ -121,6 +129,10 @@ class _TvGuideState extends State<TvGuide> {
       final programsByName = await fetchAllPrograms(epgUrl);
       final rows = <_GuideRow>[];
       for (final c in channels) {
+        // Skip channels in hidden or PIN-locked (parental) categories — the
+        // Guide has no per-row unlock, so locked content stays out of it.
+        if (_settings.hiddenCategories.contains(c.group)) continue;
+        if (_settings.categoryPins[c.group]?.isNotEmpty ?? false) continue;
         final progs =
             programsByName[normalizeChannelNameLoose(c.name)] ?? const [];
         rows.add(_GuideRow(c, progs));
@@ -164,19 +176,33 @@ class _TvGuideState extends State<TvGuide> {
         if (_items[i] is _RowItem) i,
     ];
     _sel = 0;
-    _col = 0;
+    // Start each (re)build on the currently airing programme of the top row, so
+    // the search path behaves the same as the initial load.
+    _col = _colByTime(_curRow, DateTime.now());
   }
 
   void _focusInitial() {
-    final row = _curRow;
-    if (row == null) return;
-    final now = DateTime.now();
-    var idx = row.programs.indexWhere(
-      (p) => !p.start.isAfter(now) && p.stop.isAfter(now),
-    );
-    if (idx < 0) idx = 0;
-    _col = idx;
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToFocused());
+  }
+
+  // Index of the programme airing at [t] in [row] (falls back to the last one
+  // that already started, then to 0). Empty rows return 0.
+  int _colByTime(_GuideRow? row, DateTime t) {
+    final progs = row?.programs ?? const [];
+    if (progs.isEmpty) return 0;
+    var idx = progs.indexWhere(
+      (p) => !p.start.isAfter(t) && p.stop.isAfter(t),
+    );
+    if (idx < 0) idx = progs.lastIndexWhere((p) => !p.start.isAfter(t));
+    return idx < 0 ? 0 : idx;
+  }
+
+  // Start time of the currently focused programme (now, if the row is empty) —
+  // used to keep the same time column when moving between channels.
+  DateTime _focusedTime() {
+    final progs = _curRow?.programs ?? const [];
+    if (_col >= 0 && _col < progs.length) return progs[_col].start;
+    return DateTime.now();
   }
 
   void _scrollToFocused() {
@@ -199,14 +225,6 @@ class _TvGuideState extends State<TvGuide> {
     }
   }
 
-  int _clampCol(int col) {
-    final len = _curRow?.programs.length ?? 0;
-    if (len == 0) return 0;
-    if (col < 0) return 0;
-    if (col > len - 1) return len - 1;
-    return col;
-  }
-
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
@@ -215,9 +233,10 @@ class _TvGuideState extends State<TvGuide> {
     final k = event.logicalKey;
     if (k == LogicalKeyboardKey.arrowDown) {
       if (_sel < _navRows.length - 1) {
+        final t = _focusedTime();
         setState(() {
           _sel++;
-          _col = _clampCol(_col);
+          _col = _colByTime(_curRow, t); // keep the same time column
         });
         _scrollToFocused();
       }
@@ -225,9 +244,10 @@ class _TvGuideState extends State<TvGuide> {
     }
     if (k == LogicalKeyboardKey.arrowUp) {
       if (_sel > 0) {
+        final t = _focusedTime();
         setState(() {
           _sel--;
-          _col = _clampCol(_col);
+          _col = _colByTime(_curRow, t); // keep the same time column
         });
         _scrollToFocused();
       } else {
@@ -260,17 +280,26 @@ class _TvGuideState extends State<TvGuide> {
 
   void _openFocused() {
     final row = _curRow;
-    if (row == null || _col < 0 || _col >= row.programs.length) return;
-    final p = row.programs[_col];
+    if (row == null) return;
     final now = DateTime.now();
-    if (p.start.isAfter(now)) return; // future
+    // Channels with no EPG (or no programme at the cursor) just play live.
+    if (_col < 0 || _col >= row.programs.length) {
+      _play(row.channel, null);
+      return;
+    }
+    final p = row.programs[_col];
+    if (p.start.isAfter(now)) return; // future programme — nothing to play yet
     final isLive = !p.start.isAfter(now) && p.stop.isAfter(now);
+    _play(row.channel, isLive ? null : p.start);
+  }
+
+  void _play(Channel channel, DateTime? archiveStart) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => Player(
-          channel: row.channel,
+          channel: channel,
           settings: _settings,
-          archiveStart: isLive ? null : p.start,
+          archiveStart: archiveStart,
         ),
       ),
     );
@@ -281,7 +310,8 @@ class _TvGuideState extends State<TvGuide> {
     _debounce = Timer(const Duration(milliseconds: 350), () {
       setState(() => _buildItems(value));
       if (_vBody.hasClients) _vBody.jumpTo(0);
-      if (_h.hasClients) _h.jumpTo(0);
+      // Align the horizontal scroll with the now-playing column of the top row.
+      _focusInitial();
     });
   }
 
@@ -325,7 +355,9 @@ class _TvGuideState extends State<TvGuide> {
         controller: _searchCtrl,
         focusNode: _searchFocus,
         style: const TextStyle(color: Colors.white),
+        textInputAction: TextInputAction.search,
         onChanged: _onSearch,
+        onSubmitted: (_) => _focusNode.requestFocus(),
         decoration: InputDecoration(
           isDense: true,
           hintText: S.of(context).searchChannels,
@@ -399,14 +431,18 @@ class _TvGuideState extends State<TvGuide> {
   Widget _leftCell(int i) {
     final item = _items[i];
     if (item is _HeaderItem) {
+      final label = item.name.isEmpty ? S.of(context).other : item.name;
       return Container(
-        color: Colors.white12,
+        decoration: BoxDecoration(
+          // Colour-code each category by name.
+          gradient: categoryGradient(label),
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 8),
         alignment: Alignment.centerLeft,
         child: Text(
-          item.name.isEmpty ? S.of(context).other : item.name,
+          label,
           style: const TextStyle(
-            color: Colors.amber,
+            color: Colors.white,
             fontSize: 13,
             fontWeight: FontWeight.bold,
           ),
@@ -418,17 +454,25 @@ class _TvGuideState extends State<TvGuide> {
     final focused = _navRows.isNotEmpty && i == _navRows[_sel];
     return Container(
       decoration: BoxDecoration(
-        color: focused ? Colors.white12 : Colors.transparent,
-        border: const Border(
-          bottom: BorderSide(color: Colors.white10),
-          right: BorderSide(color: Colors.white24),
+        // Bright, clearly visible highlight for the focused channel.
+        color: focused ? Colors.blue.shade600 : Colors.transparent,
+        border: Border(
+          bottom: const BorderSide(color: Colors.white10),
+          right: const BorderSide(color: Colors.white24),
+          left: focused
+              ? const BorderSide(color: Colors.yellowAccent, width: 4)
+              : BorderSide.none,
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       child: Text(
         (item as _RowItem).row.channel.name,
-        style: const TextStyle(color: Colors.white, fontSize: 13),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 13,
+          fontWeight: focused ? FontWeight.bold : FontWeight.normal,
+        ),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
@@ -438,10 +482,13 @@ class _TvGuideState extends State<TvGuide> {
   Widget _bodyCell(int i) {
     final item = _items[i];
     if (item is _HeaderItem) {
+      final label = item.name.isEmpty ? S.of(context).other : item.name;
       return SizedBox(
         width: _totalWidth,
         height: rowHeight,
-        child: Container(color: Colors.white10),
+        child: Container(
+          color: categoryColor(label).withValues(alpha: 0.25),
+        ),
       );
     }
     final row = (item as _RowItem).row;

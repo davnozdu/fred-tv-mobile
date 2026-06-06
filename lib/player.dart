@@ -34,10 +34,14 @@ class Player extends StatefulWidget {
   State<StatefulWidget> createState() => _PlayerState();
 }
 
-class _PlayerState extends State<Player> {
+class _PlayerState extends State<Player> with WidgetsBindingObserver {
   BetterPlayerController? _controller;
   BetterPlayerDataSource? _dataSource;
   bool exiting = false;
+  // Inactivity auto-pause + sleep/wake handling.
+  Timer? _inactivityTimer;
+  bool _wasPlayingBeforeBackground = false;
+  bool _autoPauseDialogShowing = false;
 
   // Custom TV-friendly controls overlay
   bool _controlsVisible = false;
@@ -68,6 +72,7 @@ class _PlayerState extends State<Player> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -80,6 +85,70 @@ class _PlayerState extends State<Player> {
     // Watchdog: restart a stream that silently freezes (plays but position
     // stops advancing) — covers stalls that never raise an error event.
     _watchdog = Timer.periodic(const Duration(seconds: 2), (_) => _checkAlive());
+    _resetInactivityTimer();
+  }
+
+  // When the box sleeps / app is backgrounded, drop the stream; on wake,
+  // reconnect a live channel from the live edge (or just resume otherwise).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      final c = _controller;
+      _wasPlayingBeforeBackground = !_isMovie && (c?.isPlaying() ?? false);
+      c?.pause();
+    } else if (state == AppLifecycleState.resumed) {
+      _resetInactivityTimer();
+      if (_wasPlayingBeforeBackground && !exiting) {
+        _wasPlayingBeforeBackground = false;
+        if (_isLive && !_archiveMode) {
+          _playLive(); // reconnect from the live edge
+        } else {
+          _controller?.play();
+        }
+      }
+    }
+  }
+
+  // Restart the inactivity countdown. Any remote key press calls this; when it
+  // fires we pause playback and explain why.
+  void _resetInactivityTimer() {
+    _inactivityTimer?.cancel();
+    final mins = widget.settings.inactivityMinutes;
+    if (mins <= 0) return; // "never"
+    _inactivityTimer = Timer(
+      Duration(minutes: mins),
+      _onInactivityTimeout,
+    );
+  }
+
+  void _onInactivityTimeout() {
+    if (!mounted || exiting) return;
+    final c = _controller;
+    if (c != null && (c.isPlaying() ?? false)) {
+      c.pause();
+    }
+    _showAutoPausedDialog();
+  }
+
+  Future<void> _showAutoPausedDialog() async {
+    if (!mounted || _autoPauseDialogShowing) return;
+    _autoPauseDialogShowing = true;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(S.of(context).autoPausedTitle),
+        content: Text(S.of(context).autoPausedBody),
+        actions: [
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(S.of(context).ok),
+          ),
+        ],
+      ),
+    );
+    _autoPauseDialogShowing = false;
   }
 
   void _checkAlive() {
@@ -478,6 +547,7 @@ class _PlayerState extends State<Player> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    _resetInactivityTimer(); // any remote activity resets the auto-pause timer
     final k = event.logicalKey;
     final controls = _controls;
     if (!_controlsVisible) {
@@ -774,9 +844,11 @@ class _PlayerState extends State<Player> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
     _ticker?.cancel();
     _watchdog?.cancel();
+    _inactivityTimer?.cancel();
     _focusNode.dispose();
     _controller?.dispose(forceDispose: true);
     super.dispose();

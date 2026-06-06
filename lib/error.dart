@@ -10,6 +10,9 @@ class Error {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+            // Auto-dismiss after 5s so it never hangs on TV (no easy way to
+            // focus the action button with a D-pad).
+            duration: const Duration(seconds: 5),
             backgroundColor: Colors.red[700],
             content: Text(
               S.of(context).errorTitle,
@@ -68,19 +71,20 @@ class Error {
                                           .textTheme
                                           .labelLarge,
                                     ),
-                                    child: const Text('Copy'),
+                                    child: Text(S.of(context).save),
                                     onPressed: () {
                                       Clipboard.setData(ClipboardData(
                                           text: error.toString()));
                                     },
                                   ),
                                   TextButton(
+                                    autofocus: true,
                                     style: TextButton.styleFrom(
                                       textStyle: Theme.of(context)
                                           .textTheme
                                           .labelLarge,
                                     ),
-                                    child: const Text('Close'),
+                                    child: Text(S.of(context).back),
                                     onPressed: () {
                                       Navigator.of(context).pop();
                                     },

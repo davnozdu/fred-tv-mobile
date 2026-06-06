@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_tv/backend/epg.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
@@ -40,6 +41,7 @@ class _HomeState extends State<Home> {
   final int pageSize = 36;
   List<Channel> channels = [];
   TextEditingController searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
   bool isLoading = false;
   bool blockSettings = false;
@@ -49,6 +51,13 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     _scrollController.addListener(_scrollListener);
+    // Re-show the soft keyboard whenever the search field regains focus (on TV,
+    // pressing Back hides it and it would otherwise stay hidden).
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      }
+    });
     initializeAsync();
   }
 
@@ -114,6 +123,7 @@ class _HomeState extends State<Home> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchFocus.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -215,6 +225,9 @@ class _HomeState extends State<Home> {
                             ).textTheme.titleMedium?.fontSize!,
                           ),
                           controller: searchController,
+                          focusNode: _searchFocus,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _searchFocus.unfocus(),
                           onChanged: (query) {
                             _debounce?.cancel();
                             _debounce = Timer(

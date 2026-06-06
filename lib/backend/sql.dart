@@ -271,6 +271,20 @@ class Sql {
         mediaType: MediaType.group);
   }
 
+  // Distinct category (group) names across all enabled sources — for the
+  // "Hide categories" / parental-control settings screen.
+  static Future<List<String>> getAllGroupNames() async {
+    var db = await DbFactory.db;
+    var rows = await db.getAll('''
+      SELECT DISTINCT g.name
+      FROM groups g
+      JOIN sources s ON s.id = g.source_id
+      WHERE s.enabled = 1 AND g.name IS NOT NULL AND g.name != ''
+      ORDER BY g.name COLLATE NOCASE
+    ''');
+    return rows.map((r) => r.columnAt(0) as String).toList();
+  }
+
   static Future<bool> sourceNameExists(String? name) async {
     var db = await DbFactory.db;
     var result = await db.getOptional('''

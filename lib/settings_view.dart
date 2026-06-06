@@ -3,6 +3,7 @@ import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/backend/utils.dart';
 import 'package:open_tv/bottom_nav.dart';
+import 'package:open_tv/category_settings.dart';
 import 'package:open_tv/confirm_delete.dart';
 import 'package:open_tv/models/filters.dart';
 import 'package:open_tv/select_dialog.dart';
@@ -255,6 +256,68 @@ class _SettingsState extends State<SettingsView> {
     );
   }
 
+  String _inactivityLabel(BuildContext context, int minutes) {
+    final s = S.of(context);
+    if (minutes <= 0) return s.never;
+    if (minutes < 60) return s.minutesLabel(minutes);
+    return s.hoursLabel(minutes / 60);
+  }
+
+  Future<void> _showInactivityDialog(BuildContext context) async {
+    final s = S.of(context);
+    // Slider: 30..360 in 30-min steps, plus a final "never" notch (stored as 0).
+    const neverValue = 390.0;
+    double slider = settings.inactivityMinutes <= 0
+        ? neverValue
+        : settings.inactivityMinutes.toDouble().clamp(30, 360).toDouble();
+    await showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          final minutes = slider >= neverValue ? 0 : slider.round();
+          return AlertDialog(
+            title: Text(s.inactivityTimeout),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _inactivityLabel(context, minutes),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Slider(
+                  value: slider,
+                  min: 30,
+                  max: neverValue,
+                  divisions: 12,
+                  label: _inactivityLabel(context, minutes),
+                  onChanged: (v) => setSt(() => slider = v),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(s.cancel),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() => settings.inactivityMinutes = minutes);
+                  updateSettings();
+                  Navigator.of(ctx).pop();
+                },
+                child: Text(s.save),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _showEpgUrlDialog() async {
     final s = S.of(context);
     final controller = TextEditingController(text: settings.epgUrl);
@@ -407,55 +470,25 @@ class _SettingsState extends State<SettingsView> {
                     ),
                   ),
                   ListTile(
-                    title: Text(s.showLivestreams),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: settings.showLivestreams,
-                          onChanged: (bool value) {
-                            setState(() {
-                              settings.showLivestreams = value;
-                            });
-                            updateSettings();
-                          },
-                        ),
-                      ],
+                    leading: const Icon(Icons.visibility_off),
+                    title: Text(s.hideCategories),
+                    subtitle: Text(s.hideCategoriesSub),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CategorySettings(),
+                      ),
                     ),
                   ),
                   ListTile(
-                    title: Text(s.showMovies),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: settings.showMovies,
-                          onChanged: (bool value) {
-                            setState(() {
-                              settings.showMovies = value;
-                            });
-                            updateSettings();
-                          },
-                        ),
-                      ],
+                    leading: const Icon(Icons.timer_outlined),
+                    title: Text(s.inactivityTimeout),
+                    subtitle: Text(
+                      s.inactivityTimeoutSub(
+                        _inactivityLabel(context, settings.inactivityMinutes),
+                      ),
                     ),
-                  ),
-                  ListTile(
-                    title: Text(s.showSeries),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: settings.showSeries,
-                          onChanged: (bool value) {
-                            setState(() {
-                              settings.showSeries = value;
-                            });
-                            updateSettings();
-                          },
-                        ),
-                      ],
-                    ),
+                    onTap: () async => await _showInactivityDialog(context),
                   ),
                   ListTile(
                     title: Text(s.fillLogos),

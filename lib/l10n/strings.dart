@@ -304,4 +304,84 @@ class S {
     'Действие выполнено успешно',
     'Дію виконано успішно',
   );
+
+  // Common
+  String get ok => _t('OK', 'OK', 'OK');
+
+  // Hide categories / parental control
+  String get hideCategories =>
+      _t('Hide categories', 'Скрыть категории', 'Сховати категорії');
+  String get hideCategoriesSub => _t(
+    'Hide categories you do not watch and set parental PINs',
+    'Скрыть ненужные категории и поставить родительский пароль',
+    'Сховати непотрібні категорії та поставити батьківський пароль',
+  );
+  String get noCategories => _t(
+    'No categories found',
+    'Категории не найдены',
+    'Категорії не знайдено',
+  );
+  String get setPin =>
+      _t('Set PIN', 'Установить пин-код', 'Встановити пін-код');
+  String get resetPin =>
+      _t('Reset PIN', 'Сбросить пин-код', 'Скинути пін-код');
+  String get enterPin =>
+      _t('Enter 4-digit PIN', 'Введите 4 цифры пин-кода', 'Введіть 4 цифри пін-коду');
+  String get repeatPin =>
+      _t('Repeat PIN', 'Повторите пин-код', 'Повторіть пін-код');
+  String get enterCurrentPin => _t(
+    'Enter current PIN',
+    'Введите текущий пин-код',
+    'Введіть поточний пін-код',
+  );
+  String get pinMismatch =>
+      _t('PINs do not match', 'Пин-коды не совпадают', 'Пін-коди не збігаються');
+  String get pinInvalid => _t(
+    'PIN must be 4 digits',
+    'Пин-код должен состоять из 4 цифр',
+    'Пін-код має складатися з 4 цифр',
+  );
+  String get pinWrong => _t('Wrong PIN', 'Неверный пин-код', 'Невірний пін-код');
+  String get pinSet =>
+      _t('PIN set', 'Пин-код установлен', 'Пін-код встановлено');
+  String get pinRemoved =>
+      _t('PIN removed', 'Пин-код снят', 'Пін-код знято');
+  String get enterPinToOpen => _t(
+    'Enter PIN to open this category',
+    'Введите пин-код, чтобы открыть категорию',
+    'Введіть пін-код, щоб відкрити категорію',
+  );
+  String get locked => _t('Locked', 'Заблокировано', 'Заблоковано');
+
+  // Inactivity / auto-pause
+  String get inactivityTimeout => _t(
+    'Auto-pause on inactivity',
+    'Автопауза при бездействии',
+    'Автопауза при бездіяльності',
+  );
+  String inactivityTimeoutSub(String value) => _t(
+    'Pause playback after $value of no activity',
+    'Ставить на паузу после $value без действий',
+    'Ставити на паузу після $value без дій',
+  );
+  String get never => _t('Never', 'Никогда', 'Ніколи');
+  String hoursLabel(double h) {
+    final isInt = h == h.roundToDouble();
+    final v = isInt ? h.toInt().toString() : h.toString();
+    return _t('$v h', '$v ч', '$v год');
+  }
+  String minutesLabel(int m) => _t('$m min', '$m мин', '$m хв');
+  String get autoPausedTitle => _t(
+    'Playback paused',
+    'Воспроизведение приостановлено',
+    'Відтворення призупинено',
+  );
+  String get autoPausedBody => _t(
+    'The system automatically paused playback due to inactivity. '
+        'If this bothers you, disable it in Settings.',
+    'Система автоматически поставила воспроизведение на паузу из-за бездействия. '
+        'Если функция вам мешает, отключите её в настройках.',
+    'Система автоматично призупинила відтворення через бездіяльність. '
+        'Якщо функція вам заважає, вимкніть її в налаштуваннях.',
+  );
 }

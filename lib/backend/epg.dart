@@ -244,8 +244,10 @@ Future<Map<String, String>> _parseNowPlaying(String epgUrl) async {
         final id = _channelIdRegex.firstMatch(block)?.group(1);
         if (id != null) {
           final names = <String>[];
+          // Loose normalization (same as the guide grid) so the catalog marquee
+          // and the Guide map a channel to the same EPG entry → same programme.
           for (final dn in _displayNameRegex.allMatches(block)) {
-            final k = normalizeChannelName(
+            final k = normalizeChannelNameLoose(
               (dn.group(1) ?? '').replaceAll(_tagRegex, ''),
             );
             if (k.isNotEmpty) names.add(k);

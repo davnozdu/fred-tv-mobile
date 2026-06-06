@@ -191,7 +191,7 @@ class _ChannelTileState extends State<ChannelTile> {
     return ValueListenableBuilder<Map<String, String>>(
       valueListenable: nowPlaying,
       builder: (_, map, __) {
-        final title = map[normalizeChannelName(widget.channel.name)];
+        final title = map[normalizeChannelNameLoose(widget.channel.name)];
         if (title == null || title.isEmpty) return const SizedBox.shrink();
         const style = TextStyle(
           color: Colors.white70,

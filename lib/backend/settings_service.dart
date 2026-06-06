@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/settings.dart';
@@ -15,6 +16,9 @@ const fillLogosFromEpgProp = "fillLogosFromEpg";
 const epgUrlProp = "epgUrl";
 const bufferSecondsProp = "bufferSeconds";
 const extendedArchiveProp = "extendedArchive";
+const hiddenCategoriesProp = "hiddenCategories";
+const categoryPinsProp = "categoryPins";
+const inactivityMinutesProp = "inactivityMinutes";
 
 class SettingsService {
   static Future<Settings> getSettings() async {
@@ -31,6 +35,9 @@ class SettingsService {
     var epg = settingsMap[epgUrlProp];
     var buffer = settingsMap[bufferSecondsProp];
     var extArchive = settingsMap[extendedArchiveProp];
+    var hidden = settingsMap[hiddenCategoriesProp];
+    var pins = settingsMap[categoryPinsProp];
+    var inactivity = settingsMap[inactivityMinutesProp];
     if (view != null) {
       settings.defaultView = ViewType.values[int.parse(view)];
     }
@@ -64,6 +71,21 @@ class SettingsService {
     if (extArchive != null) {
       settings.extendedArchive = int.parse(extArchive) == 1;
     }
+    if (hidden != null && hidden.isNotEmpty) {
+      try {
+        settings.hiddenCategories =
+            (jsonDecode(hidden) as List).map((e) => e as String).toSet();
+      } catch (_) {}
+    }
+    if (pins != null && pins.isNotEmpty) {
+      try {
+        settings.categoryPins = (jsonDecode(pins) as Map)
+            .map((k, v) => MapEntry(k as String, v as String));
+      } catch (_) {}
+    }
+    if (inactivity != null) {
+      settings.inactivityMinutes = int.parse(inactivity);
+    }
     return settings;
   }
 
@@ -83,6 +105,10 @@ class SettingsService {
     settingsMap[bufferSecondsProp] = settings.bufferSeconds.toString();
     settingsMap[extendedArchiveProp] = (settings.extendedArchive ? 1 : 0)
         .toString();
+    settingsMap[hiddenCategoriesProp] =
+        jsonEncode(settings.hiddenCategories.toList());
+    settingsMap[categoryPinsProp] = jsonEncode(settings.categoryPins);
+    settingsMap[inactivityMinutesProp] = settings.inactivityMinutes.toString();
     await Sql.updateSettings(settingsMap);
   }
 }
