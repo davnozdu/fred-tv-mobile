@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:open_tv/l10n/strings.dart';
+import 'package:open_tv/backend/launch_bridge.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/backend/updater.dart';
@@ -33,6 +34,8 @@ Future<void> main() async {
     ),
   );
   if (Platform.isAndroid) {
+    // Keep the native boot-receiver flag in sync with the stored setting.
+    LaunchBridge.setAutostartEnabled(settings.autostartOnBoot);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Updater.checkAndPrompt(MyApp.navigatorKey);
     });

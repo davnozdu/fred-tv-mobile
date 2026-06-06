@@ -1,3 +1,4 @@
+import 'package:open_tv/models/autostart_action.dart';
 import 'package:open_tv/models/media_type.dart';
 import 'package:open_tv/models/view_type.dart';
 
@@ -17,9 +18,19 @@ class Settings {
   Set<String> hiddenCategories;
   // Parental control: group name -> 4-digit PIN.
   Map<String, String> categoryPins;
-  // Auto-pause playback after this many minutes of remote inactivity.
+  // Ask "Still watching?" after this many minutes of remote inactivity.
   // 0 = never (disabled).
   int inactivityMinutes;
+  // Resume the last channel if the box was turned off while watching it.
+  bool resumePlayback;
+  // Launch the app automatically after the device boots.
+  bool autostartOnBoot;
+  // What to play when launched from boot.
+  AutostartAction autostartAction;
+  int? autostartCategoryId;
+  int? autostartChannelId;
+  String? autostartChannelName; // shown in settings
+  String? autostartCategoryName; // shown in settings
   Settings({
     this.defaultView = ViewType.all,
     this.refreshOnStart = false,
@@ -35,6 +46,13 @@ class Settings {
     Set<String>? hiddenCategories,
     Map<String, String>? categoryPins,
     this.inactivityMinutes = 180, // default: 3 hours
+    this.resumePlayback = true,
+    this.autostartOnBoot = false,
+    this.autostartAction = AutostartAction.menu,
+    this.autostartCategoryId,
+    this.autostartChannelId,
+    this.autostartChannelName,
+    this.autostartCategoryName,
   })  : hiddenCategories = hiddenCategories ?? <String>{},
         categoryPins = categoryPins ?? <String, String>{};
 

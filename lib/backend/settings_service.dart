@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:open_tv/backend/sql.dart';
+import 'package:open_tv/models/autostart_action.dart';
 import 'package:open_tv/models/settings.dart';
 import 'package:open_tv/models/view_type.dart';
 
@@ -19,6 +20,13 @@ const extendedArchiveProp = "extendedArchive";
 const hiddenCategoriesProp = "hiddenCategories";
 const categoryPinsProp = "categoryPins";
 const inactivityMinutesProp = "inactivityMinutes";
+const resumePlaybackProp = "resumePlayback";
+const autostartOnBootProp = "autostartOnBoot";
+const autostartActionProp = "autostartAction";
+const autostartCategoryIdProp = "autostartCategoryId";
+const autostartChannelIdProp = "autostartChannelId";
+const autostartChannelNameProp = "autostartChannelName";
+const autostartCategoryNameProp = "autostartCategoryName";
 
 class SettingsService {
   static Future<Settings> getSettings() async {
@@ -86,6 +94,29 @@ class SettingsService {
     if (inactivity != null) {
       settings.inactivityMinutes = int.parse(inactivity);
     }
+    var resume = settingsMap[resumePlaybackProp];
+    if (resume != null) {
+      settings.resumePlayback = int.parse(resume) == 1;
+    }
+    var autoBoot = settingsMap[autostartOnBootProp];
+    if (autoBoot != null) {
+      settings.autostartOnBoot = int.parse(autoBoot) == 1;
+    }
+    var autoAction = settingsMap[autostartActionProp];
+    if (autoAction != null) {
+      final i = int.tryParse(autoAction) ?? 0;
+      if (i >= 0 && i < AutostartAction.values.length) {
+        settings.autostartAction = AutostartAction.values[i];
+      }
+    }
+    settings.autostartCategoryId =
+        int.tryParse(settingsMap[autostartCategoryIdProp] ?? '');
+    settings.autostartChannelId =
+        int.tryParse(settingsMap[autostartChannelIdProp] ?? '');
+    final cn = settingsMap[autostartChannelNameProp];
+    if (cn != null && cn.isNotEmpty) settings.autostartChannelName = cn;
+    final gn = settingsMap[autostartCategoryNameProp];
+    if (gn != null && gn.isNotEmpty) settings.autostartCategoryName = gn;
     return settings;
   }
 
@@ -109,6 +140,19 @@ class SettingsService {
         jsonEncode(settings.hiddenCategories.toList());
     settingsMap[categoryPinsProp] = jsonEncode(settings.categoryPins);
     settingsMap[inactivityMinutesProp] = settings.inactivityMinutes.toString();
+    settingsMap[resumePlaybackProp] = (settings.resumePlayback ? 1 : 0)
+        .toString();
+    settingsMap[autostartOnBootProp] = (settings.autostartOnBoot ? 1 : 0)
+        .toString();
+    settingsMap[autostartActionProp] = settings.autostartAction.index
+        .toString();
+    settingsMap[autostartCategoryIdProp] =
+        settings.autostartCategoryId?.toString() ?? '';
+    settingsMap[autostartChannelIdProp] =
+        settings.autostartChannelId?.toString() ?? '';
+    settingsMap[autostartChannelNameProp] = settings.autostartChannelName ?? '';
+    settingsMap[autostartCategoryNameProp] =
+        settings.autostartCategoryName ?? '';
     await Sql.updateSettings(settingsMap);
   }
 }

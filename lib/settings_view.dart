@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/backend/utils.dart';
+import 'package:open_tv/backend/launch_bridge.dart';
 import 'package:open_tv/bottom_nav.dart';
 import 'package:open_tv/category_settings.dart';
+import 'package:open_tv/channel_picker.dart';
 import 'package:open_tv/confirm_delete.dart';
+import 'package:open_tv/models/autostart_action.dart';
+import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/filters.dart';
 import 'package:open_tv/select_dialog.dart';
 import 'package:open_tv/edit_dialog.dart';
@@ -318,6 +322,97 @@ class _SettingsState extends State<SettingsView> {
     );
   }
 
+  String _autostartActionName(BuildContext context, AutostartAction a) {
+    final s = S.of(context);
+    switch (a) {
+      case AutostartAction.menu:
+        return s.autostartMenu;
+      case AutostartAction.lastChannel:
+        return s.autostartLast;
+      case AutostartAction.category:
+        return s.autostartCategory;
+      case AutostartAction.channel:
+        return s.autostartChannel;
+    }
+  }
+
+  String _autostartLabel(BuildContext context) {
+    final s = S.of(context);
+    switch (settings.autostartAction) {
+      case AutostartAction.category:
+        return "${s.autostartCategory}: "
+            "${settings.autostartCategoryName ?? s.notChosen}";
+      case AutostartAction.channel:
+        return "${s.autostartChannel}: "
+            "${settings.autostartChannelName ?? s.notChosen}";
+      default:
+        return _autostartActionName(context, settings.autostartAction);
+    }
+  }
+
+  Future<void> _showAutostartActionDialog() async {
+    final s = S.of(context);
+    await showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (ctx) => SelectDialog(
+        title: s.autostartAction,
+        data: AutostartAction.values
+            .map((a) => IdData(id: a.index, data: _autostartActionName(ctx, a)))
+            .toList(),
+        action: (i) async {
+          Navigator.of(ctx).pop();
+          final action = AutostartAction.values[i];
+          if (action == AutostartAction.category) {
+            await _pickAutostartCategory();
+          } else if (action == AutostartAction.channel) {
+            await _pickAutostartChannel();
+          } else {
+            setState(() => settings.autostartAction = action);
+            updateSettings();
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _pickAutostartCategory() async {
+    final groups = await Sql.getGroupsMinimal();
+    if (!mounted || groups.isEmpty) return;
+    final s = S.of(context);
+    await showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (ctx) => SelectDialog(
+        title: s.selectCategory,
+        data: groups,
+        action: (gid) {
+          final g = groups.firstWhere((x) => x.id == gid);
+          setState(() {
+            settings.autostartAction = AutostartAction.category;
+            settings.autostartCategoryId = g.id;
+            settings.autostartCategoryName = g.data;
+          });
+          updateSettings();
+          Navigator.of(ctx).pop();
+        },
+      ),
+    );
+  }
+
+  Future<void> _pickAutostartChannel() async {
+    final Channel? ch = await Navigator.of(context).push<Channel>(
+      MaterialPageRoute(builder: (_) => const ChannelPicker()),
+    );
+    if (ch == null || !mounted) return;
+    setState(() {
+      settings.autostartAction = AutostartAction.channel;
+      settings.autostartChannelId = ch.id;
+      settings.autostartChannelName = ch.name;
+    });
+    updateSettings();
+  }
+
   Future<void> _showEpgUrlDialog() async {
     final s = S.of(context);
     final controller = TextEditingController(text: settings.epgUrl);
@@ -490,6 +585,38 @@ class _SettingsState extends State<SettingsView> {
                     ),
                     onTap: () async => await _showInactivityDialog(context),
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.play_circle_outline),
+                    title: Text(s.resumePlayback),
+                    subtitle: Text(s.resumePlaybackSub),
+                    trailing: Switch(
+                      value: settings.resumePlayback,
+                      onChanged: (bool value) {
+                        setState(() => settings.resumePlayback = value);
+                        updateSettings();
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.power_settings_new),
+                    title: Text(s.autostartOnBoot),
+                    subtitle: Text(s.autostartOnBootSub),
+                    trailing: Switch(
+                      value: settings.autostartOnBoot,
+                      onChanged: (bool value) {
+                        setState(() => settings.autostartOnBoot = value);
+                        updateSettings();
+                        LaunchBridge.setAutostartEnabled(value);
+                      },
+                    ),
+                  ),
+                  if (settings.autostartOnBoot)
+                    ListTile(
+                      leading: const Icon(Icons.playlist_play),
+                      title: Text(s.autostartAction),
+                      subtitle: Text(_autostartLabel(context)),
+                      onTap: () async => await _showAutostartActionDialog(),
+                    ),
                   ListTile(
                     title: Text(s.fillLogos),
                     subtitle: Text(s.fillLogosSub),

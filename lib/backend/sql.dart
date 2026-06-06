@@ -271,6 +271,75 @@ class Sql {
         mediaType: MediaType.group);
   }
 
+  // Reads/writes a single Settings key without touching the others (used for
+  // the "currently watching" channel flag that powers Resume playback).
+  static Future<String?> getSetting(String key) async {
+    var db = await DbFactory.db;
+    var result = await db.getOptional(
+        'SELECT value FROM Settings WHERE key = ?', [key]);
+    return result?.columnAt(0) as String?;
+  }
+
+  static Future<void> setSetting(String key, String? value) async {
+    var db = await DbFactory.db;
+    if (value == null) {
+      await db.execute('DELETE FROM Settings WHERE key = ?', [key]);
+      return;
+    }
+    await db.execute('''
+      INSERT INTO Settings (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = ?
+    ''', [key, value, value]);
+  }
+
+  static Future<Channel?> getChannelById(int id) async {
+    var db = await DbFactory.db;
+    var row = await db.getOptional('SELECT * FROM channels WHERE id = ?', [id]);
+    return row != null ? rowToChannel(row) : null;
+  }
+
+  // Most recently watched livestream (for autostart "last channel").
+  static Future<Channel?> getLastWatchedChannel() async {
+    var db = await DbFactory.db;
+    var row = await db.getOptional('''
+      SELECT * FROM channels
+      WHERE last_watched IS NOT NULL
+        AND media_type = ${MediaType.livestream.index}
+        AND url IS NOT NULL
+      ORDER BY last_watched DESC
+      LIMIT 1
+    ''');
+    return row != null ? rowToChannel(row) : null;
+  }
+
+  // Livestream channels of one category (for autostart "category" + zapping).
+  static Future<List<Channel>> getCategoryLivestreams(int groupId) async {
+    var db = await DbFactory.db;
+    var rows = await db.getAll('''
+      SELECT * FROM channels
+      WHERE group_id = ?
+        AND media_type = ${MediaType.livestream.index}
+        AND url IS NOT NULL
+      ORDER BY id
+    ''', [groupId]);
+    return rows.map(rowToChannel).toList();
+  }
+
+  // Categories (id + name) across enabled sources, for the autostart picker.
+  static Future<List<IdData<String>>> getGroupsMinimal() async {
+    var db = await DbFactory.db;
+    var rows = await db.getAll('''
+      SELECT g.id, g.name
+      FROM groups g
+      JOIN sources s ON s.id = g.source_id
+      WHERE s.enabled = 1 AND g.name IS NOT NULL AND g.name != ''
+      ORDER BY g.name COLLATE NOCASE
+    ''');
+    return rows
+        .map((r) => IdData<String>(id: r.columnAt(0), data: r.columnAt(1)))
+        .toList();
+  }
+
   // Distinct category (group) names across all enabled sources — for the
   // "Hide categories" / parental-control settings screen.
   static Future<List<String>> getAllGroupNames() async {

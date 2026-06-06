@@ -24,11 +24,17 @@ class Player extends StatefulWidget {
   // When set (and the channel is live), start playback in the archive at this
   // moment instead of live — used when picking a past programme from the guide.
   final DateTime? archiveStart;
+  // Optional channel list for D-pad up/down zapping. When omitted, the player
+  // lazily loads all livestreams of the channel's source.
+  final List<Channel>? playlist;
+  final int playlistIndex;
   const Player({
     super.key,
     required this.channel,
     required this.settings,
     this.archiveStart,
+    this.playlist,
+    this.playlistIndex = 0,
   });
   @override
   State<StatefulWidget> createState() => _PlayerState();
@@ -38,10 +44,16 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   BetterPlayerController? _controller;
   BetterPlayerDataSource? _dataSource;
   bool exiting = false;
-  // Inactivity auto-pause + sleep/wake handling.
+  // Inactivity "still watching?" + sleep/wake handling.
   Timer? _inactivityTimer;
   bool _wasPlayingBeforeBackground = false;
-  bool _autoPauseDialogShowing = false;
+  bool _stillWatchingShowing = false;
+  // Channel zapping (D-pad up/down).
+  late List<Channel> _playlist =
+      widget.playlist ?? [widget.channel];
+  late int _index = widget.playlistIndex
+      .clamp(0, (widget.playlist?.length ?? 1) - 1);
+  bool _zapping = false;
 
   // Custom TV-friendly controls overlay
   bool _controlsVisible = false;
@@ -51,7 +63,10 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   EpgProgram? _currentProgram;
   int? _archiveStartEpoch;
   List<EpgProgram>? _programs;
-  late bool _isFav = widget.channel.favorite;
+  late bool _isFav = _ch.favorite;
+
+  // Current channel (the zapping cursor).
+  Channel get _ch => _playlist[_index];
   Timer? _hideTimer;
   Timer? _ticker;
   Timer? _watchdog;
@@ -61,8 +76,8 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   final List<DateTime> _rebufferTimes = [];
   final FocusNode _focusNode = FocusNode();
 
-  bool get _isLive => widget.channel.mediaType == MediaType.livestream;
-  bool get _isMovie => widget.channel.mediaType == MediaType.movie;
+  bool get _isLive => _ch.mediaType == MediaType.livestream;
+  bool get _isMovie => _ch.mediaType == MediaType.movie;
 
   Duration get _position =>
       _controller?.videoPlayerController?.value.position ?? Duration.zero;
@@ -86,6 +101,55 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     // stops advancing) — covers stalls that never raise an error event.
     _watchdog = Timer.periodic(const Duration(seconds: 2), (_) => _checkAlive());
     _resetInactivityTimer();
+    _markActiveChannel();
+    _ensurePlaylist();
+  }
+
+  // Remembers the channel currently being watched so "Resume playback" can
+  // continue it if the box is powered off mid-stream. Cleared on a normal exit.
+  Future<void> _markActiveChannel() async {
+    if (!widget.settings.resumePlayback || !_isLive || _archiveMode) return;
+    final id = _ch.id;
+    if (id != null) await Sql.setSetting('activeChannelId', id.toString());
+  }
+
+  // Lazily load the zapping playlist (all livestreams of this source) when the
+  // player was opened without one.
+  Future<void> _ensurePlaylist() async {
+    if (widget.playlist != null || !_isLive) return;
+    try {
+      final list = await Sql.getLivestreams([_ch.sourceId]);
+      if (!mounted || list.length < 2) return;
+      var idx = list.indexWhere((c) => c.id == _ch.id);
+      if (idx < 0) idx = 0;
+      setState(() {
+        _playlist = list;
+        _index = idx;
+      });
+    } catch (_) {}
+  }
+
+  // D-pad up/down zaps to the previous/next live channel (with wrap-around).
+  Future<void> _zap(int delta) async {
+    if (!_isLive || _playlist.length < 2 || _zapping) return;
+    _zapping = true;
+    setState(() {
+      _index = (_index + delta) % _playlist.length;
+      if (_index < 0) _index += _playlist.length;
+      _archiveMode = false;
+      _currentProgram = null;
+      _archiveStartEpoch = null;
+      _programs = null;
+      _isFav = _ch.favorite;
+      _aspectIdx = 0;
+    });
+    _toast(_ch.name);
+    _resetInactivityTimer();
+    try {
+      await _setup(_ch.url!, true);
+    } catch (_) {}
+    _markActiveChannel();
+    _zapping = false;
   }
 
   // When the box sleeps / app is backgrounded, drop the stream; on wake,
@@ -124,31 +188,52 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
 
   void _onInactivityTimeout() {
     if (!mounted || exiting) return;
-    final c = _controller;
-    if (c != null && (c.isPlaying() ?? false)) {
-      c.pause();
-    }
-    _showAutoPausedDialog();
+    _showStillWatchingDialog();
   }
 
-  Future<void> _showAutoPausedDialog() async {
-    if (!mounted || _autoPauseDialogShowing) return;
-    _autoPauseDialogShowing = true;
-    await showDialog(
+  // "Still watching?" — shown after the inactivity period instead of a hard
+  // disconnect. Confirm keeps playing; no answer within 60s just pauses.
+  Future<void> _showStillWatchingDialog() async {
+    if (!mounted || _stillWatchingShowing) return;
+    _stillWatchingShowing = true;
+    var remaining = 60;
+    Timer? countdown;
+    final keepWatching = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(S.of(context).autoPausedTitle),
-        content: Text(S.of(context).autoPausedBody),
-        actions: [
-          TextButton(
-            autofocus: true,
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(S.of(context).ok),
-          ),
-        ],
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          countdown ??= Timer.periodic(const Duration(seconds: 1), (t) {
+            remaining--;
+            if (remaining <= 0) {
+              t.cancel();
+              Navigator.of(ctx).pop(false);
+            } else {
+              setSt(() {});
+            }
+          });
+          return AlertDialog(
+            title: Text(S.of(context).stillWatchingTitle),
+            content: Text(S.of(context).stillWatchingBody(remaining)),
+            actions: [
+              TextButton(
+                autofocus: true,
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(S.of(context).yes),
+              ),
+            ],
+          );
+        },
       ),
     );
-    _autoPauseDialogShowing = false;
+    countdown?.cancel();
+    _stillWatchingShowing = false;
+    if (!mounted) return;
+    if (keepWatching == true) {
+      _resetInactivityTimer();
+    } else {
+      _controller?.pause(); // no answer -> pause, but keep the stream/session
+    }
   }
 
   void _checkAlive() {
@@ -205,9 +290,9 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
         return;
       }
     }
-    await _setup(widget.channel.url!, _isLive);
-    if (widget.channel.mediaType == MediaType.movie) {
-      final secs = await Sql.getPosition(widget.channel.id!);
+    await _setup(_ch.url!, _isLive);
+    if (_ch.mediaType == MediaType.movie) {
+      final secs = await Sql.getPosition(_ch.id!);
       if (secs != null && secs > 0) {
         await _controller?.seekTo(Duration(seconds: secs));
       }
@@ -215,7 +300,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   }
 
   Future<void> _setup(String url, bool live) async {
-    final headers = await Sql.getChannelHeaders(widget.channel.id!);
+    final headers = await Sql.getChannelHeaders(_ch.id!);
     final hdr = <String, String>{
       if (headers?.referrer != null) "Referer": headers!.referrer!,
       if (headers?.httpOrigin != null) "Origin": headers!.httpOrigin!,
@@ -324,7 +409,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   // ---------------------------------------------------------------------------
 
   String? _streamRoot() {
-    final base = widget.channel.url;
+    final base = _ch.url;
     if (base == null) return null;
     final q = base.indexOf('?');
     final clean = q >= 0 ? base.substring(0, q) : base;
@@ -348,7 +433,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     _archiveMode = false;
     _currentProgram = null;
     _archiveStartEpoch = null;
-    await _setup(widget.channel.url!, true);
+    await _setup(_ch.url!, true);
   }
 
   Future<void> _playArchive(EpgProgram p) async {
@@ -367,7 +452,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     final extended = widget.settings.extendedArchive;
     final url = extended ? archiveEpgUrl : widget.settings.epgUrl.trim();
     if (url.isEmpty) return [];
-    final all = _programs ?? await fetchPrograms(url, widget.channel.name);
+    final all = _programs ?? await fetchPrograms(url, _ch.name);
     _programs = all;
     final now = DateTime.now().toUtc();
     final from = now.subtract(Duration(days: extended ? 7 : 2));
@@ -409,8 +494,8 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
 
   Future<void> _toggleFavorite() async {
     final value = !_isFav;
-    await Sql.favoriteChannel(widget.channel.id!, value);
-    widget.channel.favorite = value;
+    await Sql.favoriteChannel(_ch.id!, value);
+    _ch.favorite = value;
     if (mounted) setState(() => _isFav = value);
   }
 
@@ -547,9 +632,21 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
-    _resetInactivityTimer(); // any remote activity resets the auto-pause timer
+    _resetInactivityTimer(); // any remote activity resets the inactivity timer
     final k = event.logicalKey;
     final controls = _controls;
+    // Channel zapping (live only): up = previous, down = next. Also honours the
+    // hardware Channel +/- keys when present.
+    if (_isLive &&
+        (k == LogicalKeyboardKey.arrowUp ||
+            k == LogicalKeyboardKey.arrowDown ||
+            k == LogicalKeyboardKey.channelUp ||
+            k == LogicalKeyboardKey.channelDown)) {
+      final up =
+          k == LogicalKeyboardKey.arrowUp || k == LogicalKeyboardKey.channelUp;
+      _zap(up ? -1 : 1);
+      return KeyEventResult.handled;
+    }
     if (!_controlsVisible) {
       if (k == LogicalKeyboardKey.select ||
           k == LogicalKeyboardKey.enter ||
@@ -669,8 +766,8 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
                     Expanded(
                       child: Text(
                         _archiveMode
-                            ? "${widget.channel.name}  •  Archive"
-                            : widget.channel.name,
+                            ? "${_ch.name}  •  Archive"
+                            : _ch.name,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -824,11 +921,15 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   void onExit() async {
     if (exiting) return;
     exiting = true;
+    // Leaving on purpose: forget the "currently watching" channel so the box
+    // lands in the menu next time (Resume playback only continues a stream that
+    // was interrupted by power-off, not one the user deliberately closed).
+    Sql.setSetting('activeChannelId', null);
     final c = _controller;
-    if (widget.channel.mediaType == MediaType.movie &&
+    if (_ch.mediaType == MediaType.movie &&
         c?.videoPlayerController != null) {
       Sql.setPosition(
-        widget.channel.id!,
+        _ch.id!,
         c!.videoPlayerController!.value.position.inSeconds,
       );
     }

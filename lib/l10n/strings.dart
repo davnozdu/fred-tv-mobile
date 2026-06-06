@@ -353,16 +353,16 @@ class S {
   );
   String get locked => _t('Locked', 'Заблокировано', 'Заблоковано');
 
-  // Inactivity / auto-pause
+  // Inactivity / "still watching?"
   String get inactivityTimeout => _t(
-    'Auto-pause on inactivity',
-    'Автопауза при бездействии',
-    'Автопауза при бездіяльності',
+    '"Still watching?" on inactivity',
+    '«Вы ещё смотрите?» при бездействии',
+    '«Ви ще дивитесь?» при бездіяльності',
   );
   String inactivityTimeoutSub(String value) => _t(
-    'Pause playback after $value of no activity',
-    'Ставить на паузу после $value без действий',
-    'Ставити на паузу після $value без дій',
+    'Ask after $value of no activity',
+    'Спрашивать после $value без действий',
+    'Питати після $value без дій',
   );
   String get never => _t('Never', 'Никогда', 'Ніколи');
   String hoursLabel(double h) {
@@ -371,17 +371,54 @@ class S {
     return _t('$v h', '$v ч', '$v год');
   }
   String minutesLabel(int m) => _t('$m min', '$m мин', '$m хв');
-  String get autoPausedTitle => _t(
-    'Playback paused',
-    'Воспроизведение приостановлено',
-    'Відтворення призупинено',
+  String get yes => _t('Yes', 'Да', 'Так');
+  String get stillWatchingTitle =>
+      _t('Still watching?', 'Вы ещё смотрите?', 'Ви ще дивитесь?');
+  String stillWatchingBody(int sec) => _t(
+    'Playback will pause in $sec s',
+    'Воспроизведение остановится через $sec с',
+    'Відтворення зупиниться через $sec с',
   );
-  String get autoPausedBody => _t(
-    'The system automatically paused playback due to inactivity. '
-        'If this bothers you, disable it in Settings.',
-    'Система автоматически поставила воспроизведение на паузу из-за бездействия. '
-        'Если функция вам мешает, отключите её в настройках.',
-    'Система автоматично призупинила відтворення через бездіяльність. '
-        'Якщо функція вам заважає, вимкніть її в налаштуваннях.',
+
+  // Resume playback
+  String get resumePlayback => _t(
+    'Resume playback',
+    'Продолжать воспроизведение',
+    'Продовжувати відтворення',
   );
+  String get resumePlaybackSub => _t(
+    'If the box is turned off on a channel, continue it on next start',
+    'Если приставку выключили на канале — продолжить его при запуске',
+    'Якщо приставку вимкнули на каналі — продовжити його під час запуску',
+  );
+
+  // Autostart
+  String get autostartOnBoot => _t(
+    'Autostart on device boot',
+    'Автозапуск при загрузке устройства',
+    'Автозапуск при завантаженні пристрою',
+  );
+  String get autostartOnBootSub => _t(
+    'Open the app automatically after the box powers on',
+    'Открывать приложение автоматически после включения приставки',
+    'Відкривати застосунок автоматично після ввімкнення приставки',
+  );
+  String get autostartAction =>
+      _t('What to open on autostart', 'Что открывать при автозапуске',
+          'Що відкривати при автозапуску');
+  String get autostartMenu => _t('Menu', 'Меню', 'Меню');
+  String get autostartLast =>
+      _t('Last channel', 'Последний канал', 'Останній канал');
+  String get autostartCategory => _t(
+    'Channel from a category',
+    'Канал из категории',
+    'Канал з категорії',
+  );
+  String get autostartChannel =>
+      _t('Specific channel', 'Свой канал', 'Власний канал');
+  String get selectCategory =>
+      _t('Select category', 'Выберите категорию', 'Виберіть категорію');
+  String get selectChannel =>
+      _t('Select channel', 'Выберите канал', 'Виберіть канал');
+  String get notChosen => _t('Not chosen', 'Не выбрано', 'Не вибрано');
 }
