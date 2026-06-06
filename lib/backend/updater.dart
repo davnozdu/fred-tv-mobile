@@ -69,7 +69,13 @@ class Updater {
   }
 
   static String? _pickApk(List assets) {
-    // Prefer the 32-bit build (runs on all ARM devices).
+    // Prefer the universal APK (all ABIs in one file).
+    for (final a in assets) {
+      if ((a["name"] ?? "").toString() == "app-release.apk") {
+        return a["browser_download_url"]?.toString();
+      }
+    }
+    // Fallback: the 32-bit build (runs on all ARM devices).
     for (final a in assets) {
       final name = (a["name"] ?? "").toString();
       if (name.contains("armeabi-v7a") && name.endsWith(".apk")) {
