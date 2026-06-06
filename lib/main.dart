@@ -103,6 +103,25 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
           surfaceContainer: Color.fromARGB(255, 29, 36, 41),
         ),
+        // High-contrast D-pad focus highlight (default is a faint grey that is
+        // hard to see on the black background).
+        focusColor: const Color(0x804FC3F7), // bright blue overlay
+        hoverColor: const Color(0x334FC3F7),
+        listTileTheme: const ListTileThemeData(
+          selectedColor: Colors.white,
+          selectedTileColor: Color(0x334FC3F7),
+        ),
+        // Make focused dialog buttons (TextButton) clearly visible too.
+        textButtonTheme: TextButtonThemeData(
+          style: ButtonStyle(
+            overlayColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.focused)) {
+                return const Color(0x804FC3F7);
+              }
+              return null;
+            }),
+          ),
+        ),
         filledButtonTheme: FilledButtonThemeData(
           style: ButtonStyle(
             side: WidgetStateProperty.resolveWith((states) {

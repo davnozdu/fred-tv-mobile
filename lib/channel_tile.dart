@@ -240,10 +240,19 @@ class _ChannelTileState extends State<ChannelTile> {
 
   @override
   Widget build(BuildContext context) {
+    final focused = _focusNode.hasFocus;
     return Card(
-      elevation: _focusNode.hasFocus ? 8.0 : 2.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Theme.of(context).colorScheme.surfaceContainer,
+      elevation: focused ? 8.0 : 2.0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        // Clear, high-contrast focus outline.
+        side: focused
+            ? const BorderSide(color: Color(0xFF4FC3F7), width: 3)
+            : BorderSide.none,
+      ),
+      color: focused
+          ? const Color(0xFF14323F)
+          : Theme.of(context).colorScheme.surfaceContainer,
       child: InkWell(
         focusNode: _focusNode,
         autofocus: widget.autofocus,

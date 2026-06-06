@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:marquee/marquee.dart';
 
 class MenuTile extends StatefulWidget {
   final IconData icon;
@@ -27,6 +28,53 @@ class MenuTile extends StatefulWidget {
 class _MenuTileState extends State<MenuTile> {
   bool _isFocused = false;
   bool _isHovered = false;
+
+  // Single-line label. Long names scroll horizontally (marquee) while the tile
+  // is focused instead of wrapping to a second line.
+  Widget _buildLabel(BuildContext context) {
+    final bool isImage = widget.imageAsset != null;
+    final double fontSize = isImage
+        ? (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16)
+        : (Theme.of(context).textTheme.headlineSmall?.fontSize ?? 24);
+    final style = TextStyle(
+      color: Colors.white,
+      fontSize: fontSize,
+      fontWeight: FontWeight.w600,
+      shadows: const [
+        Shadow(color: Colors.black45, offset: Offset(0, 2), blurRadius: 2),
+      ],
+    );
+    // Tile is 200 wide; minus the 4px border each side and 8px padding each side.
+    const double labelWidth = 200 - 8 - 16;
+    final tp = TextPainter(
+      text: TextSpan(text: widget.label, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final overflows = tp.width > labelWidth;
+    return SizedBox(
+      width: labelWidth,
+      height: fontSize * 1.5,
+      child: (overflows && (_isFocused || _isHovered))
+          ? Marquee(
+              text: widget.label,
+              style: style,
+              velocity: 28,
+              blankSpace: 40,
+              startPadding: 0,
+              pauseAfterRound: const Duration(milliseconds: 1200),
+              accelerationDuration: const Duration(milliseconds: 300),
+              decelerationDuration: const Duration(milliseconds: 300),
+            )
+          : Text(
+              widget.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: style,
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,31 +127,7 @@ class _MenuTileState extends State<MenuTile> {
                 else
                   Icon(widget.icon, color: Colors.white, size: 50),
                 const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
-                    widget.label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      // Smaller, bounded label for image (category) tiles so long
-                      // names don't overflow the tile.
-                      fontSize: widget.imageAsset != null
-                          ? Theme.of(context).textTheme.titleMedium?.fontSize
-                          : Theme.of(context).textTheme.headlineSmall?.fontSize,
-                      fontWeight: FontWeight.w600,
-                      shadows: const [
-                        Shadow(
-                          color: Colors.black45,
-                          offset: Offset(0, 2),
-                          blurRadius: 2,
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+                _buildLabel(context),
               ],
             ),
           ),
