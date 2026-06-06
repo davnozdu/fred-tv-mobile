@@ -43,7 +43,6 @@ class _HomeState extends State<Home> {
   final ScrollController _scrollController = ScrollController();
   bool isLoading = false;
   bool blockSettings = false;
-  int? previousScroll;
   bool scrolledDeepEnough = false;
 
   @override
@@ -138,11 +137,6 @@ class _HomeState extends State<Home> {
         isLoading = false;
       });
     }
-  }
-
-  void clearSearch() {
-    widget.home.filters.query = null;
-    searchController.clear();
   }
 
   ViewType getStartingView() {

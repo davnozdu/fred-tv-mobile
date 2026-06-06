@@ -3,14 +3,12 @@ import 'dart:collection';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/settings.dart';
 import 'package:open_tv/models/view_type.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
 const defaultView = "defaultView";
 const refreshOnStart = "refreshOnStart";
 const showLivestreams = "showLivestreams";
 const showMovies = "showMovies";
 const showSeries = "showSeries";
-const lastSeenVersion = "lastSeenVersion";
 const forceTvMode = "forceTVMode";
 const lowLatencyProp = "streamCaching";
 const fillLogosFromEpgProp = "fillLogosFromEpg";
@@ -86,19 +84,5 @@ class SettingsService {
     settingsMap[extendedArchiveProp] = (settings.extendedArchive ? 1 : 0)
         .toString();
     await Sql.updateSettings(settingsMap);
-  }
-
-  static Future<void> updateLastSeenVersion() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    HashMap<String, String> lastSeenMap = HashMap();
-    lastSeenMap[lastSeenVersion] = packageInfo.version;
-    await Sql.updateSettings(lastSeenMap);
-  }
-
-  static Future<String?> shouldShowWhatsNew() async {
-    final String version = (await PackageInfo.fromPlatform()).version;
-    return (await Sql.getSettings())[lastSeenVersion] != version
-        ? version
-        : null;
   }
 }
