@@ -138,6 +138,26 @@ class _SettingsState extends State<SettingsView> {
     );
   }
 
+  // Make [source] the only active playlist (enable it, disable the rest).
+  Future<void> switchToSource(Source source) async {
+    await Error.tryAsyncNoLoading(() async {
+      for (final s in sources) {
+        final shouldEnable = s.id == source.id;
+        if (s.enabled != shouldEnable) {
+          await Sql.setSourceEnabled(shouldEnable, s.id!);
+        }
+      }
+    }, context);
+    await reloadSources();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(S.of(context).playlistSwitched(source.name)),
+        duration: const Duration(milliseconds: 800),
+      ),
+    );
+  }
+
   Widget getSource(Source source) {
     return Card(
       margin: const EdgeInsets.symmetric(
@@ -146,8 +166,15 @@ class _SettingsState extends State<SettingsView> {
       ), // Spacing around the tile
       elevation: 5,
       child: ListTile(
-        leading: Icon(source.enabled ? Icons.tv : Icons.tv_off),
+        leading: Icon(
+          source.enabled
+              ? Icons.radio_button_checked
+              : Icons.radio_button_unchecked,
+          color: source.enabled ? Theme.of(context).colorScheme.primary : null,
+        ),
         horizontalTitleGap: 25,
+        // Tap switches to this playlist; long-press toggles it (multi-enable).
+        onTap: () => switchToSource(source),
         onLongPress: () => toggleSource(source),
         contentPadding: const EdgeInsets.only(left: 20),
         title: Text(source.name),
@@ -682,6 +709,28 @@ class _SettingsState extends State<SettingsView> {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add),
+                    title: Text(s.addPlaylist),
+                    subtitle: Text(s.addPlaylistSub),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const Setup(showAppBar: true),
+                      ),
+                    ),
+                  ),
+                  if (sources.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      child: Text(
+                        s.switchPlaylistHint,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                   ...sources.map(getSource),
                 ],
               ),

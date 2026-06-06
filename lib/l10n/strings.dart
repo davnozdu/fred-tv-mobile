@@ -149,6 +149,23 @@ class S {
   String get showSeries =>
       _t('Show series', 'Показывать сериалы', 'Показувати серіали');
   String get sources => _t('Sources', 'Источники', 'Джерела');
+  String get addPlaylist =>
+      _t('Add playlist', 'Добавить плейлист', 'Додати плейлист');
+  String get addPlaylistSub => _t(
+    'Run the wizard to add another playlist (the current one is kept)',
+    'Запустить мастер и добавить ещё один плейлист (текущий сохранится)',
+    'Запустити майстер і додати ще один плейлист (поточний збережеться)',
+  );
+  String playlistSwitched(String name) => _t(
+    'Active playlist: $name',
+    'Активен плейлист: $name',
+    'Активний плейлист: $name',
+  );
+  String get switchPlaylistHint => _t(
+    'Tap a playlist to make it the only active one; long-press to toggle',
+    'Нажмите на плейлист, чтобы сделать его активным; удержание — вкл/выкл',
+    'Натисніть на плейлист, щоб зробити його активним; утримання — увімк/вимк',
+  );
 
   // Common
   String get cancel => _t('Cancel', 'Отмена', 'Скасувати');

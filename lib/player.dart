@@ -147,6 +147,12 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     _resetInactivityTimer();
     try {
       await _setup(_ch.url!, true);
+      // Reset any aspect-ratio override carried over from the previous channel.
+      final c = _controller;
+      if (c != null && mounted) {
+        c.setOverriddenFit(BoxFit.fill);
+        c.setOverriddenAspectRatio(MediaQuery.of(context).size.aspectRatio);
+      }
     } catch (_) {}
     _markActiveChannel();
     _zapping = false;
@@ -238,7 +244,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
 
   void _checkAlive() {
     final c = _controller;
-    if (c == null || exiting || _isMovie) return;
+    if (c == null || exiting || _isMovie || _zapping) return;
     // Only act on a real freeze — never fight a user-initiated pause.
     final playing = _isPlaying && (c.isPlaying() ?? false);
     final pos = c.videoPlayerController?.value.position ?? Duration.zero;
