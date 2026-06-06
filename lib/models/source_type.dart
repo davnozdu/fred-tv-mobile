@@ -1,4 +1,4 @@
-enum SourceType { xtream, m3uUrl, m3u }
+enum SourceType { xtream, m3uUrl, m3u, hlsProxy }
 
 extension SourceTypeExtension on SourceType {
   String get label {
@@ -9,6 +9,8 @@ extension SourceTypeExtension on SourceType {
         return "M3U Url";
       case SourceType.xtream:
         return "Xtream";
+      case SourceType.hlsProxy:
+        return "HLS-PROXY";
     }
   }
 }

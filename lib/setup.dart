@@ -53,6 +53,30 @@ class _SetupState extends State<Setup> {
   final nextButtonFocusNode = FocusNode();
   Set<String> existingSourceNames = {};
 
+  // HLS-PROXY: three pre-filled, editable fields combined into one playlist URL.
+  final proxyIpCtrl = TextEditingController(text: 'http://127.0.0.1');
+  final proxyPortCtrl = TextEditingController(text: '9393');
+  final proxyPlaylistCtrl = TextEditingController(text: 'playlist.m3u8');
+  final proxyIpFocus = FocusNode();
+  final proxyPortFocus = FocusNode();
+  final proxyPlaylistFocus = FocusNode();
+
+  bool get _isProxy => selectedSourceType == SourceType.hlsProxy;
+
+  bool _proxyValid() =>
+      proxyIpCtrl.text.trim().isNotEmpty &&
+      proxyPortCtrl.text.trim().isNotEmpty &&
+      proxyPlaylistCtrl.text.trim().isNotEmpty;
+
+  String _proxyUrl() {
+    var ip = proxyIpCtrl.text.trim();
+    if (!ip.startsWith('http')) ip = 'http://$ip';
+    ip = ip.replaceAll(RegExp(r'/+$'), '');
+    final port = proxyPortCtrl.text.trim();
+    final pl = proxyPlaylistCtrl.text.trim().replaceAll(RegExp(r'^/+'), '');
+    return '$ip:$port/$pl';
+  }
+
   Future<void> finish() async {
     var result = await Error.tryAsync(
       () async {
@@ -62,6 +86,8 @@ class _SetupState extends State<Setup> {
             sourceType: selectedSourceType,
             url: selectedSourceType == SourceType.m3u
                 ? formValues[Steps.url]!
+                : _isProxy
+                ? _proxyUrl()
                 : await fixUrl(formValues[Steps.url]!),
             username: selectedSourceType == SourceType.xtream
                 ? formValues[Steps.username]
@@ -108,6 +134,13 @@ class _SetupState extends State<Setup> {
   @override
   void initState() {
     nextButtonFocusNode.requestFocus();
+    for (final f in [proxyIpFocus, proxyPortFocus, proxyPlaylistFocus]) {
+      f.addListener(() {
+        if (f.hasFocus) {
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+        }
+      });
+    }
     super.initState();
   }
 
@@ -117,6 +150,12 @@ class _SetupState extends State<Setup> {
       focus.dispose();
     }
     nextButtonFocusNode.dispose();
+    proxyIpCtrl.dispose();
+    proxyPortCtrl.dispose();
+    proxyPlaylistCtrl.dispose();
+    proxyIpFocus.dispose();
+    proxyPortFocus.dispose();
+    proxyPlaylistFocus.dispose();
     super.dispose();
   }
 
@@ -141,7 +180,7 @@ class _SetupState extends State<Setup> {
 
   void prevStep() {
     isForward = false;
-    if (formPages.contains(step)) {
+    if (formPages.contains(step) && !(_isProxy && step == Steps.url)) {
       formValues[step] =
           _formKeys[step]?.currentState?.fields[step.name]?.value;
     }
@@ -150,9 +189,17 @@ class _SetupState extends State<Setup> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
-        formValid = _formKeys[step]?.currentState?.isValid == true;
+        if (_isProxy && step == Steps.url) {
+          formValid = _proxyValid();
+        } else {
+          formValid = _formKeys[step]?.currentState?.isValid == true;
+        }
       });
-      if (formPages.contains(step)) focusNodes[step]?.requestFocus();
+      if (_isProxy && step == Steps.url) {
+        proxyIpFocus.requestFocus();
+      } else if (formPages.contains(step)) {
+        focusNodes[step]?.requestFocus();
+      }
       if (step == Steps.welcome) {
         nextButtonFocusNode.requestFocus();
       }
@@ -177,6 +224,7 @@ class _SetupState extends State<Setup> {
       if (!await selectFile()) return;
       finish();
     } else if ((selectedSourceType == SourceType.m3uUrl && step == Steps.url) ||
+        (_isProxy && step == Steps.url) ||
         step == Steps.password) {
       finish();
     } else if (step == Steps.finish) {
@@ -187,12 +235,20 @@ class _SetupState extends State<Setup> {
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setState(() {
-          if (formValues[step]?.isNotEmpty == true) {
-            _formKeys[step]?.currentState?.validate();
+          if (_isProxy && step == Steps.url) {
+            formValid = _proxyValid();
+          } else {
+            if (formValues[step]?.isNotEmpty == true) {
+              _formKeys[step]?.currentState?.validate();
+            }
+            formValid = _formKeys[step]?.currentState?.isValid == true;
           }
-          formValid = _formKeys[step]?.currentState?.isValid == true;
         });
-        if (formPages.contains(step)) focusNodes[step]?.requestFocus();
+        if (_isProxy && step == Steps.url) {
+          proxyIpFocus.requestFocus();
+        } else if (formPages.contains(step)) {
+          focusNodes[step]?.requestFocus();
+        }
       });
     }
   }
@@ -424,6 +480,7 @@ class _SetupState extends State<Setup> {
           ),
         ]);
       case Steps.url:
+        if (_isProxy) return _proxyPage();
         return getPage(S.of(context).urlQuestion, null, [
           FormBuilder(
             onChanged: () {
@@ -513,6 +570,69 @@ class _SetupState extends State<Setup> {
       case Steps.finish:
         return getPage(S.of(context).doneTitle, S.of(context).doneSub, null);
     }
+  }
+
+  // HLS-PROXY page: three pre-filled, editable fields + a live preview of the
+  // resulting playlist URL.
+  Widget _proxyPage() {
+    return getPage(S.of(context).hlsProxyQuestion, null, [
+      _proxyField(
+        proxyIpCtrl,
+        proxyIpFocus,
+        S.of(context).hlsProxyIp,
+        Icons.lan,
+        TextInputType.url,
+      ),
+      const SizedBox(height: 14),
+      _proxyField(
+        proxyPortCtrl,
+        proxyPortFocus,
+        S.of(context).hlsProxyPort,
+        Icons.numbers,
+        TextInputType.number,
+      ),
+      const SizedBox(height: 14),
+      _proxyField(
+        proxyPlaylistCtrl,
+        proxyPlaylistFocus,
+        S.of(context).hlsProxyPlaylist,
+        Icons.playlist_play,
+        TextInputType.text,
+      ),
+      const SizedBox(height: 20),
+      Text(
+        "${S.of(context).hlsProxyResult}:",
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        _proxyUrl(),
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.lightBlueAccent),
+      ),
+    ]);
+  }
+
+  Widget _proxyField(
+    TextEditingController ctrl,
+    FocusNode focus,
+    String label,
+    IconData icon,
+    TextInputType keyboard,
+  ) {
+    return TextField(
+      controller: ctrl,
+      focusNode: focus,
+      autocorrect: false,
+      keyboardType: keyboard,
+      textInputAction: TextInputAction.next,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        prefixIcon: Icon(icon),
+      ),
+      onChanged: (_) => setState(() => formValid = _proxyValid()),
+    );
   }
 
   Widget getPage(

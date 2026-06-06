@@ -225,6 +225,18 @@ class S {
       _t('What is your password?', 'Ваш пароль?', 'Ваш пароль?');
   String get password => _t('Password', 'Пароль', 'Пароль');
   String get selectFile => _t('Select file', 'Выбрать файл', 'Вибрати файл');
+
+  // HLS proxy source
+  String get hlsProxyQuestion => _t(
+    'Enter your HLS-PROXY details',
+    'Введите данные HLS-PROXY',
+    'Введіть дані HLS-PROXY',
+  );
+  String get hlsProxyIp => _t('IP address', 'IP-адрес', 'IP-адреса');
+  String get hlsProxyPort => _t('Port', 'Порт', 'Порт');
+  String get hlsProxyPlaylist => _t('Playlist', 'Плейлист', 'Плейлист');
+  String get hlsProxyResult =>
+      _t('Resulting link', 'Итоговая ссылка', 'Підсумкове посилання');
   String get finish => _t('Finish', 'Готово', 'Готово');
   String get doneTitle => _t('Done!', 'Готово!', 'Готово!');
   String get doneSub =>

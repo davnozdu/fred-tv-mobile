@@ -152,3 +152,6 @@ app.*.symbols
 
 # More from Fred
 android/app/.cxx
+
+# Local example playlist (do not commit)
+playlist.m3u8

@@ -34,6 +34,8 @@ class Utils {
         await processM3U(source, wipe);
         break;
       case SourceType.m3uUrl:
+      case SourceType.hlsProxy:
+        // HLS proxy serves a plain M3U playlist over HTTP — same handling.
         await processM3UUrl(source, wipe);
         break;
       case SourceType.xtream:

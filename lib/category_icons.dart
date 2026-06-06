@@ -43,8 +43,9 @@ const List<(String, List<String>)> _table = [
   ('azerbaijan', ['азерб', 'azərb', 'azer', 'азербайдж']),
   ('belarus', ['белар', 'білор', 'belarus', 'беларус']),
   ('central_asia', [
-    'тадж', 'тоҷик', 'tajik', 'центральн', 'central asia', 'узбек', 'uzbek',
-    'кыргыз', 'kyrgyz', 'туркмен', 'средняя азия', 'азия'
+    'тадж', 'тоҷик', 'точик', 'tajik', 'центральн', 'central asia', 'узбек',
+    'uzbek', "o'zbek", 'zbek', 'кыргыз', 'kyrgyz', 'туркмен', 'средняя азия',
+    'азия'
   ]),
   ('international', [
     'междунар', 'міжнар', 'international', 'world', 'світ', 'зарубеж',
