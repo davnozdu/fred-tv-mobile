@@ -291,6 +291,11 @@ class S {
     'Налаштування недоступні під час оновлення під час запуску',
   );
   String get scrollToTop => _t('Scroll to Top', 'Наверх', 'Догори');
+  String get pressAgainToExit => _t(
+    'Press back again to exit',
+    'Нажмите ещё раз, чтобы выйти',
+    'Натисніть ще раз, щоб вийти',
+  );
 
   // Success snackbars
   String get sourceRefreshed => _t(
