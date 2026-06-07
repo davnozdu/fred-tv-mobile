@@ -55,7 +55,7 @@ jobs:
       - name: Upload APKs as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fred-tv-apks
+          name: smotrim-player-apks
           path: out/*.apk
 
       - name: Create GitHub Release
