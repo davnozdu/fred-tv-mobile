@@ -86,10 +86,19 @@ class _SetupState extends State<Setup> {
     final host = _proxyHost();
     final port = int.tryParse(proxyPortCtrl.text.trim());
     if (host.isEmpty || port == null) {
-      if (mounted) setState(() => _proxyStatus = _ProxyStatus.offline);
+      if (mounted) {
+        setState(() {
+          _proxyStatus = _ProxyStatus.offline;
+          formValid = false;
+        });
+      }
       return;
     }
-    setState(() => _proxyStatus = _ProxyStatus.checking);
+    if (!mounted) return;
+    setState(() {
+      _proxyStatus = _ProxyStatus.checking;
+      formValid = false;
+    });
     try {
       final socket = await Socket.connect(
         host,
@@ -97,9 +106,24 @@ class _SetupState extends State<Setup> {
         timeout: const Duration(seconds: 2),
       );
       socket.destroy();
-      if (mounted) setState(() => _proxyStatus = _ProxyStatus.online);
+      if (mounted) {
+        setState(() {
+          _proxyStatus = _ProxyStatus.online;
+          formValid = _proxyReady();
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && step == Steps.url && _isProxy && _proxyReady()) {
+            nextButtonFocusNode.requestFocus();
+          }
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _proxyStatus = _ProxyStatus.offline);
+      if (mounted) {
+        setState(() {
+          _proxyStatus = _ProxyStatus.offline;
+          formValid = false;
+        });
+      }
     }
   }
 
@@ -119,6 +143,17 @@ class _SetupState extends State<Setup> {
       proxyIpCtrl.text.trim().isNotEmpty &&
       proxyPortCtrl.text.trim().isNotEmpty &&
       proxyPlaylistCtrl.text.trim().isNotEmpty;
+
+  bool _proxyReady() => _proxyValid() && _proxyStatus == _ProxyStatus.online;
+
+  bool _isTextFormStep(Steps s) =>
+      formPages.contains(s) && !(_isProxy && s == Steps.url);
+
+  bool _canGoNext() {
+    if (!formPages.contains(step)) return true;
+    if (_isProxy && step == Steps.url) return _proxyReady();
+    return formValid;
+  }
 
   String _proxyUrl() {
     var ip = proxyIpCtrl.text.trim();
@@ -267,7 +302,7 @@ class _SetupState extends State<Setup> {
 
   void prevStep() {
     isForward = false;
-    if (formPages.contains(step) && !(_isProxy && step == Steps.url)) {
+    if (_isTextFormStep(step)) {
       formValues[step] =
           _formKeys[step]?.currentState?.fields[step.name]?.value;
     }
@@ -295,7 +330,7 @@ class _SetupState extends State<Setup> {
 
   Future<void> handleNext() async {
     isForward = true;
-    if (formPages.contains(step)) {
+    if (_isTextFormStep(step)) {
       formValues[step] =
           _formKeys[step]?.currentState?.fields[step.name]?.value;
     }
@@ -323,7 +358,7 @@ class _SetupState extends State<Setup> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setState(() {
           if (_isProxy && step == Steps.url) {
-            formValid = _proxyValid();
+            formValid = _proxyReady();
           } else {
             if (formValues[step]?.isNotEmpty == true) {
               _formKeys[step]?.currentState?.validate();
@@ -443,9 +478,7 @@ class _SetupState extends State<Setup> {
                           order: NumericFocusOrder(1.0),
                           child: FilledButton(
                             focusNode: nextButtonFocusNode,
-                            onPressed: !formPages.contains(step) || formValid
-                                ? handleNext
-                                : null,
+                            onPressed: _canGoNext() ? handleNext : null,
                             style: FilledButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 24,

@@ -173,6 +173,7 @@ class _KeyboardNavFix extends StatefulWidget {
 class _KeyboardNavFixState extends State<_KeyboardNavFix>
     with WidgetsBindingObserver {
   double _lastInset = 0;
+  bool _keyboardWasVisible = false;
 
   @override
   void initState() {
@@ -191,17 +192,41 @@ class _KeyboardNavFixState extends State<_KeyboardNavFix>
     final inset = WidgetsBinding
             .instance.platformDispatcher.implicitView?.viewInsets.bottom ??
         0;
-    if (_lastInset > 0 && inset == 0) {
-      final focus = FocusManager.instance.primaryFocus;
-      final editing =
-          focus?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
-      if (editing && !focus!.nextFocus()) {
-        focus.unfocus();
-      }
+    final keyboardVisible = inset > 0;
+    if ((_lastInset > 0 || _keyboardWasVisible) && !keyboardVisible) {
+      _restoreNavigationFocusAfterKeyboardClose();
     }
     _lastInset = inset;
+    _keyboardWasVisible = keyboardVisible;
   }
 
   @override
   Widget build(BuildContext context) => widget.child;
+
+  void _restoreNavigationFocusAfterKeyboardClose() {
+    final focus = FocusManager.instance.primaryFocus;
+    final focusContext = focus?.context;
+    final editing =
+        focusContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (!editing || focus == null) return;
+
+    for (var i = 0; i < 8; i++) {
+      if (!focus.nextFocus()) break;
+      final nextFocus = FocusManager.instance.primaryFocus;
+      final nextContext = nextFocus?.context;
+      final nextIsEditing =
+          nextContext?.findAncestorWidgetOfExactType<EditableText>() != null;
+      if (!nextIsEditing) return;
+    }
+
+    focus.unfocus(disposition: UnfocusDisposition.previouslyFocusedChild);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final scope = FocusScope.of(context);
+      if (scope.focusedChild == null || scope.focusedChild == focus) {
+        scope.nextFocus();
+      }
+    });
+  }
 }
