@@ -398,6 +398,8 @@ class S {
     'Введіть пін-код, щоб відкрити категорію',
   );
   String get locked => _t('Locked', 'Заблокировано', 'Заблоковано');
+  String get categoryHidden => _t('Hidden', 'Скрыта', 'Прихована');
+  String get categoryShown => _t('Shown', 'Показывается', 'Показується');
 
   // Inactivity / "still watching?"
   String get inactivityTimeout => _t(

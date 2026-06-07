@@ -187,10 +187,54 @@ Map<String, List<EpgProgram>> _buildGuide(Map data) {
             .toList()
           ..sort((a, b) => a.start.compareTo(b.start));
     for (final name in (namesById[id] as List? ?? const [])) {
-      result[name as String] = programs;
+      final existing = result[name as String];
+      // HD and SD variants of a channel can collapse to the same normalized
+      // key — keep the entry that actually has programmes (don't let an empty
+      // one wipe a full one).
+      if (existing == null || programs.length > existing.length) {
+        result[name] = programs;
+      }
     }
   });
   return result;
+}
+
+// Matches quality markers even when glued to the name (e.g. "ТВ HD", "ТВHD").
+final _qualityStripRegex = RegExp(
+  r'(uhd|fhd|hd|4k|2k|sd)',
+  caseSensitive: false,
+);
+
+/// Programmes for a channel, with an HD->base fallback: if the exact (loose)
+/// name has no programmes, retry with quality markers stripped, so HD channels
+/// reuse the non-HD schedule when only that exists.
+List<EpgProgram> epgProgramsFor(
+  Map<String, List<EpgProgram>> guide,
+  String channelName,
+) {
+  final k1 = normalizeChannelNameLoose(channelName);
+  final p1 = guide[k1];
+  if (p1 != null && p1.isNotEmpty) return p1;
+  final k2 = normalizeChannelNameLoose(
+    channelName.replaceAll(_qualityStripRegex, ' '),
+  );
+  if (k2 != k1) {
+    final p2 = guide[k2];
+    if (p2 != null && p2.isNotEmpty) return p2;
+  }
+  return p1 ?? const [];
+}
+
+/// Current "now playing" title for a channel, with the same HD->base fallback.
+String? epgNowTitleFor(Map<String, String> nowMap, String channelName) {
+  final k1 = normalizeChannelNameLoose(channelName);
+  final t1 = nowMap[k1];
+  if (t1 != null && t1.isNotEmpty) return t1;
+  final k2 = normalizeChannelNameLoose(
+    channelName.replaceAll(_qualityStripRegex, ' '),
+  );
+  if (k2 != k1) return nowMap[k2];
+  return null;
 }
 
 // Reads & decodes the on-disk guide in a background isolate (if fresh enough).

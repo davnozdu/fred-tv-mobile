@@ -133,8 +133,7 @@ class _TvGuideState extends State<TvGuide> {
         // Guide has no per-row unlock, so locked content stays out of it.
         if (_settings.hiddenCategories.contains(c.group)) continue;
         if (_settings.categoryPins[c.group]?.isNotEmpty ?? false) continue;
-        final progs =
-            programsByName[normalizeChannelNameLoose(c.name)] ?? const [];
+        final progs = epgProgramsFor(programsByName, c.name);
         rows.add(_GuideRow(c, progs));
       }
       rows.sort((a, b) {

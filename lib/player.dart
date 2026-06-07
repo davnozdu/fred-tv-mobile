@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:marquee/marquee.dart';
 import 'package:open_tv/backend/epg.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/channel.dart';
@@ -63,10 +64,15 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   EpgProgram? _currentProgram;
   int? _archiveStartEpoch;
   List<EpgProgram>? _programs;
+  String? _liveTitle; // currently-airing programme title (live)
   late bool _isFav = _ch.favorite;
 
   // Current channel (the zapping cursor).
   Channel get _ch => _playlist[_index];
+
+  // Programme shown in the top marquee: archive programme or live "now".
+  String? get _programText =>
+      _archiveMode ? _currentProgram?.title : _liveTitle;
   Timer? _hideTimer;
   Timer? _ticker;
   Timer? _watchdog;
@@ -103,6 +109,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     _resetInactivityTimer();
     _markActiveChannel();
     _ensurePlaylist();
+    _loadLiveProgram();
   }
 
   // Remembers the channel currently being watched so "Resume playback" can
@@ -119,6 +126,15 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     if (widget.playlist != null || !_isLive) return;
     try {
       final list = await Sql.getLivestreams([_ch.sourceId]);
+      final s = widget.settings;
+      // Never zap into hidden or parental-locked categories (keep the channel
+      // currently being watched regardless).
+      list.removeWhere(
+        (c) =>
+            c.id != _ch.id &&
+            (s.hiddenCategories.contains(c.group) ||
+                (s.categoryPins[c.group]?.isNotEmpty ?? false)),
+      );
       if (!mounted || list.length < 2) return;
       var idx = list.indexWhere((c) => c.id == _ch.id);
       if (idx < 0) idx = 0;
@@ -126,6 +142,27 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
         _playlist = list;
         _index = idx;
       });
+    } catch (_) {}
+  }
+
+  // Loads the currently-airing programme title for the live channel (uses the
+  // shared, cached guide — no extra download). Shown in the top marquee.
+  Future<void> _loadLiveProgram() async {
+    if (!_isLive) return;
+    final url = widget.settings.epgUrl.trim();
+    if (url.isEmpty) return;
+    try {
+      final guide = await fetchAllPrograms(url);
+      final progs = epgProgramsFor(guide, _ch.name);
+      final now = DateTime.now().toUtc();
+      String? title;
+      for (final p in progs) {
+        if (!p.start.isAfter(now) && p.stop.isAfter(now)) {
+          title = p.title;
+          break;
+        }
+      }
+      if (mounted) setState(() => _liveTitle = title);
     } catch (_) {}
   }
 
@@ -140,11 +177,13 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
       _currentProgram = null;
       _archiveStartEpoch = null;
       _programs = null;
+      _liveTitle = null;
       _isFav = _ch.favorite;
       _aspectIdx = 0;
     });
     _toast(_ch.name);
     _resetInactivityTimer();
+    _loadLiveProgram();
     try {
       await _setup(_ch.url!, true);
       // Reset any aspect-ratio override carried over from the previous channel.
@@ -734,6 +773,46 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     );
   }
 
+  // Top-centre marquee with the current programme (scrolls if it overflows).
+  Widget _buildProgramLine(String text) {
+    const style = TextStyle(
+      color: Colors.white70,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    );
+    return SizedBox(
+      height: 20,
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final tp = TextPainter(
+            text: TextSpan(text: text, style: style),
+            maxLines: 1,
+            textDirection: TextDirection.ltr,
+          )..layout();
+          if (tp.width > constraints.maxWidth) {
+            return Marquee(
+              text: text,
+              style: style,
+              velocity: 30,
+              blankSpace: 50,
+              startPadding: 0,
+              pauseAfterRound: const Duration(milliseconds: 1200),
+              accelerationDuration: const Duration(milliseconds: 300),
+              decelerationDuration: const Duration(milliseconds: 300),
+            );
+          }
+          return Text(
+            text,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildOverlay(BuildContext context) {
     return IgnorePointer(
       ignoring: !_controlsVisible,
@@ -770,18 +849,33 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        _archiveMode
-                            ? "${_ch.name}  •  Archive"
-                            : _ch.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            _archiveMode
+                                ? "${_ch.name}  •  Archive"
+                                : _ch.name,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (_programText != null &&
+                              _programText!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            _buildProgramLine(_programText!),
+                          ],
+                        ],
                       ),
                     ),
+                    // Balance the leading back button so the title stays centred.
+                    const SizedBox(width: 48),
                   ],
                 ),
               ),

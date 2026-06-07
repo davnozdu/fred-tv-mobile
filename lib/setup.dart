@@ -637,6 +637,8 @@ class _SetupState extends State<Setup> {
         S.of(context).hlsProxyIp,
         Icons.lan,
         TextInputType.url,
+        // IME "next" moves to the following field — vital for D-pad/TV remotes.
+        onSubmitted: () => proxyPortFocus.requestFocus(),
       ),
       const SizedBox(height: 14),
       _proxyField(
@@ -645,6 +647,7 @@ class _SetupState extends State<Setup> {
         S.of(context).hlsProxyPort,
         Icons.numbers,
         TextInputType.number,
+        onSubmitted: () => proxyPlaylistFocus.requestFocus(),
       ),
       const SizedBox(height: 14),
       _proxyField(
@@ -653,6 +656,13 @@ class _SetupState extends State<Setup> {
         S.of(context).hlsProxyPlaylist,
         Icons.playlist_play,
         TextInputType.text,
+        action: TextInputAction.done,
+        // Last field: close the keyboard so the remote can reach the status /
+        // install button below, and refresh the status.
+        onSubmitted: () {
+          proxyPlaylistFocus.unfocus();
+          _checkProxy();
+        },
       ),
       const SizedBox(height: 20),
       Text(
@@ -675,14 +685,17 @@ class _SetupState extends State<Setup> {
     FocusNode focus,
     String label,
     IconData icon,
-    TextInputType keyboard,
-  ) {
+    TextInputType keyboard, {
+    TextInputAction action = TextInputAction.next,
+    VoidCallback? onSubmitted,
+  }) {
     return TextField(
       controller: ctrl,
       focusNode: focus,
       autocorrect: false,
       keyboardType: keyboard,
-      textInputAction: TextInputAction.next,
+      textInputAction: action,
+      onSubmitted: (_) => onSubmitted?.call(),
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),

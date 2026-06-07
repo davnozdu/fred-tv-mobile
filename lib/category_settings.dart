@@ -98,42 +98,43 @@ class _CategorySettingsState extends State<CategorySettings> {
   Widget _row(String name, S s) {
     final hidden = _settings.hiddenCategories.contains(name);
     final hasPin = _settings.categoryPins[name]?.isNotEmpty ?? false;
+    final dim = hidden ? Colors.grey : null;
+    // The whole row is focusable (OK toggles show/hide) so the D-pad selection
+    // is clearly visible; the lock button to the right manages the PIN.
     return ListTile(
-      leading: Container(
-        width: 12,
-        height: 40,
-        decoration: BoxDecoration(
-          gradient: categoryGradient(name),
-          borderRadius: BorderRadius.circular(4),
-        ),
-      ),
-      title: Text(name),
-      subtitle: hasPin
-          ? Row(
-              children: [
-                const Icon(Icons.lock, size: 14, color: Colors.amber),
-                const SizedBox(width: 4),
-                Text(s.locked, style: const TextStyle(color: Colors.amber)),
-              ],
-            )
-          : null,
-      trailing: Row(
+      onTap: () => _toggleHidden(name, !hidden),
+      leading: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: Icon(
-              hasPin ? Icons.lock : Icons.lock_open,
-              color: hasPin ? Colors.amber : null,
+          Container(
+            width: 6,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: categoryGradient(name),
+              borderRadius: BorderRadius.circular(3),
             ),
-            tooltip: hasPin ? s.resetPin : s.setPin,
-            onPressed: () => hasPin ? _resetPin(name) : _setPin(name),
           ),
-          Switch(
-            // "on" = visible; toggling off hides the category.
-            value: !hidden,
-            onChanged: (v) => _toggleHidden(name, !v),
+          const SizedBox(width: 12),
+          Icon(
+            hidden ? Icons.visibility_off : Icons.visibility,
+            color: dim,
           ),
         ],
+      ),
+      title: Text(name, style: TextStyle(color: dim)),
+      subtitle: Text(
+        hidden
+            ? s.categoryHidden
+            : (hasPin ? s.locked : s.categoryShown),
+        style: TextStyle(color: hasPin ? Colors.amber : dim),
+      ),
+      trailing: IconButton(
+        icon: Icon(
+          hasPin ? Icons.lock : Icons.lock_open,
+          color: hasPin ? Colors.amber : null,
+        ),
+        tooltip: hasPin ? s.resetPin : s.setPin,
+        onPressed: () => hasPin ? _resetPin(name) : _setPin(name),
       ),
     );
   }
