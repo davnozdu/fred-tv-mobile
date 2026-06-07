@@ -60,8 +60,10 @@ class MyApp extends StatelessWidget {
 
   bool get _isEditingText {
     final focus = FocusManager.instance.primaryFocus;
-    return focus?.context?.findAncestorWidgetOfExactType<EditableText>() !=
-        null;
+    if (focus == null) return false;
+    final context = focus.context;
+    if (context == null || !context.mounted) return false;
+    return context.findAncestorWidgetOfExactType<EditableText>() != null;
   }
 
   @override
@@ -70,7 +72,7 @@ class MyApp extends StatelessWidget {
       title: 'Smotrim CZ Player',
       navigatorKey: navigatorKey,
       supportedLocales: S.supportedLocales,
-      localizationsDelegates: [
+      localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
