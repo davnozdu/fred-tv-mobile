@@ -70,6 +70,8 @@ class _SetupState extends State<Setup> {
   Timer? _proxyDebounce;
   _ProxyStatus _proxyStatus = _ProxyStatus.unknown;
   bool _proxyInstalled = false;
+  // Which proxy field is in edit mode (keyboard shown). null = navigating only.
+  int? _editingProxyField;
 
   bool get _isProxy => selectedSourceType == SourceType.hlsProxy;
 
@@ -187,14 +189,36 @@ class _SetupState extends State<Setup> {
   @override
   void initState() {
     nextButtonFocusNode.requestFocus();
-    for (final f in [proxyIpFocus, proxyPortFocus, proxyPlaylistFocus]) {
-      f.addListener(() {
-        if (f.hasFocus) {
-          SystemChannels.textInput.invokeMethod('TextInput.show');
+    // Proxy fields: D-pad arrows just move between fields (keyboard stays
+    // closed); pressing OK/Enter on a field opens (or re-opens) its keyboard.
+    final proxyFocuses = [proxyIpFocus, proxyPortFocus, proxyPlaylistFocus];
+    for (var i = 0; i < proxyFocuses.length; i++) {
+      final idx = i;
+      final node = proxyFocuses[i];
+      node.addListener(() {
+        if (!node.hasFocus && _editingProxyField == idx) {
+          if (mounted) setState(() => _editingProxyField = null);
         }
       });
+      node.onKeyEvent = (n, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.gameButtonA)) {
+          _editProxyField(idx, node);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
     }
     super.initState();
+  }
+
+  // Puts a proxy field into edit mode (read-write) and opens the keyboard.
+  void _editProxyField(int index, FocusNode focus) {
+    setState(() => _editingProxyField = index);
+    focus.requestFocus();
+    SystemChannels.textInput.invokeMethod('TextInput.show');
   }
 
   @override
@@ -632,33 +656,35 @@ class _SetupState extends State<Setup> {
   Widget _proxyPage() {
     return getPage(S.of(context).hlsProxyQuestion, null, [
       _proxyField(
+        0,
         proxyIpCtrl,
         proxyIpFocus,
         S.of(context).hlsProxyIp,
         Icons.lan,
         TextInputType.url,
-        // IME "next" moves to the following field — vital for D-pad/TV remotes.
-        onSubmitted: () => proxyPortFocus.requestFocus(),
+        // IME "next" moves to (and starts editing) the following field.
+        onSubmitted: () => _editProxyField(1, proxyPortFocus),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 8),
       _proxyField(
+        1,
         proxyPortCtrl,
         proxyPortFocus,
         S.of(context).hlsProxyPort,
         Icons.numbers,
         TextInputType.number,
-        onSubmitted: () => proxyPlaylistFocus.requestFocus(),
+        onSubmitted: () => _editProxyField(2, proxyPlaylistFocus),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 8),
       _proxyField(
+        2,
         proxyPlaylistCtrl,
         proxyPlaylistFocus,
         S.of(context).hlsProxyPlaylist,
         Icons.playlist_play,
         TextInputType.text,
         action: TextInputAction.done,
-        // Last field: jump straight to the "Next" button so the wizard can be
-        // continued, and refresh the server status.
+        // Last field: jump straight to "Next" so the wizard can be continued.
         onSubmitted: () {
           _checkProxy();
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -666,25 +692,19 @@ class _SetupState extends State<Setup> {
           });
         },
       ),
-      const SizedBox(height: 16),
-      // Status sits right under the fields (above the keyboard area) so it is
-      // visible and the install button is easy to reach.
-      _proxyStatusBlock(),
-      const SizedBox(height: 16),
-      Text(
-        "${S.of(context).hlsProxyResult}:",
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      const SizedBox(height: 4),
+      const SizedBox(height: 12),
       Text(
         _proxyUrl(),
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.lightBlueAccent),
+        style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 13),
       ),
+      const SizedBox(height: 10),
+      _proxyStatusBlock(),
     ]);
   }
 
   Widget _proxyField(
+    int index,
     TextEditingController ctrl,
     FocusNode focus,
     String label,
@@ -693,15 +713,23 @@ class _SetupState extends State<Setup> {
     TextInputAction action = TextInputAction.next,
     VoidCallback? onSubmitted,
   }) {
+    // Read-only until activated with OK, so D-pad navigation between fields does
+    // not pop the keyboard. OK (onTap) enters edit mode and shows the keyboard;
+    // pressing OK again re-shows it after Back closed it.
+    final editing = _editingProxyField == index;
     return TextField(
       controller: ctrl,
       focusNode: focus,
       autocorrect: false,
+      readOnly: !editing,
       keyboardType: keyboard,
       textInputAction: action,
+      onTap: () => _editProxyField(index, focus),
       onSubmitted: (_) => onSubmitted?.call(),
       decoration: InputDecoration(
         labelText: label,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         border: const OutlineInputBorder(),
         prefixIcon: Icon(icon),
       ),
