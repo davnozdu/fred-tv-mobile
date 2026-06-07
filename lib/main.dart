@@ -91,7 +91,7 @@ class MyApp extends StatelessWidget {
                 }
                 navigatorKey.currentState?.maybePop();
               },
-              const SingleActivator(LogicalKeyboardKey.back): () {
+              const SingleActivator(LogicalKeyboardKey.goBack): () {
                 if (_isEditingText) {
                   final focus = FocusManager.instance.primaryFocus;
                   focus?.unfocus();
