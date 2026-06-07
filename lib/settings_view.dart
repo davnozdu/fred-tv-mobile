@@ -177,33 +177,32 @@ class _SettingsState extends State<SettingsView> {
           contentPadding: const EdgeInsets.only(left: 20, right: 10),
           title: Text(source.name),
           subtitle: Text(source.sourceType.label),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (source.sourceType != SourceType.m3u)
+          trailing: FocusTraversalGroup(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (source.sourceType != SourceType.m3u)
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () async {
+                      await Error.tryAsync(
+                        () async => await Utils.refreshSource(source),
+                        context,
+                        S.of(context).sourceRefreshed,
+                      );
+                    },
+                  ),
+                if (source.sourceType != SourceType.m3u)
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: () async => await showEditDialog(context, source),
+                  ),
                 IconButton(
-                  focusNode: FocusNode(), // Explicit focus node
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () async {
-                    await Error.tryAsync(
-                      () async => await Utils.refreshSource(source),
-                      context,
-                      S.of(context).sourceRefreshed,
-                    );
-                  },
+                  icon: const Icon(Icons.delete),
+                  onPressed: () async => await showConfirmDeleteDialog(source),
                 ),
-              if (source.sourceType != SourceType.m3u)
-                IconButton(
-                  focusNode: FocusNode(), // Explicit focus node
-                  icon: const Icon(Icons.edit),
-                  onPressed: () async => await showEditDialog(context, source),
-                ),
-              IconButton(
-                focusNode: FocusNode(), // Explicit focus node
-                icon: const Icon(Icons.delete),
-                onPressed: () async => await showConfirmDeleteDialog(source),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

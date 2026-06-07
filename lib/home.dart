@@ -47,6 +47,7 @@ class _HomeState extends State<Home> {
   bool isLoading = false;
   bool blockSettings = false;
   bool scrolledDeepEnough = false;
+  DateTime? _lastPressedAt;
 
   @override
   void initState() {
@@ -206,15 +207,14 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext context) {
-    DateTime? lastPressedAt;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         final now = DateTime.now();
-        if (lastPressedAt == null ||
-            now.difference(lastPressedAt!) > const Duration(seconds: 2)) {
-          lastPressedAt = now;
+        if (_lastPressedAt == null ||
+            now.difference(_lastPressedAt!) > const Duration(seconds: 2)) {
+          _lastPressedAt = now;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(S.of(context).pressAgainToExit),
