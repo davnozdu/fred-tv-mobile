@@ -182,6 +182,7 @@ class _SettingsState extends State<SettingsView> {
             children: [
               if (source.sourceType != SourceType.m3u)
                 IconButton(
+                  focusNode: FocusNode(), // Explicit focus node
                   icon: const Icon(Icons.refresh),
                   onPressed: () async {
                     await Error.tryAsync(
@@ -193,10 +194,12 @@ class _SettingsState extends State<SettingsView> {
                 ),
               if (source.sourceType != SourceType.m3u)
                 IconButton(
+                  focusNode: FocusNode(), // Explicit focus node
                   icon: const Icon(Icons.edit),
                   onPressed: () async => await showEditDialog(context, source),
                 ),
               IconButton(
+                focusNode: FocusNode(), // Explicit focus node
                 icon: const Icon(Icons.delete),
                 onPressed: () async => await showConfirmDeleteDialog(source),
               ),

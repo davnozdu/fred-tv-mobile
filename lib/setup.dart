@@ -288,6 +288,10 @@ class _SetupState extends State<Setup> {
     final valid = _formKeys[s]?.currentState?.isValid == true;
     if (!valid) return;
     setState(() => formValid = true);
+    
+    // Explicitly unfocus to hide keyboard and then focus next button
+    FocusManager.instance.primaryFocus?.unfocus();
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) nextButtonFocusNode.requestFocus();
     });
