@@ -142,9 +142,10 @@ class _SettingsState extends State<SettingsView> {
   Future<void> switchToSource(Source source) async {
     await Error.tryAsyncNoLoading(() async {
       for (final s in sources) {
-        final shouldEnable = s.id == source.id;
-        if (s.enabled != shouldEnable) {
-          await Sql.setSourceEnabled(shouldEnable, s.id!);
+        if (s.id == source.id) {
+          if (!s.enabled) await Sql.setSourceEnabled(true, s.id!);
+        } else {
+          if (s.enabled) await Sql.setSourceEnabled(false, s.id!);
         }
       }
     }, context);
@@ -160,56 +161,47 @@ class _SettingsState extends State<SettingsView> {
 
   Widget getSource(Source source) {
     return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 5,
-      ), // Spacing around the tile
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       elevation: 5,
-      child: ListTile(
-        leading: Icon(
-          source.enabled
-              ? Icons.radio_button_checked
-              : Icons.radio_button_unchecked,
-          color: source.enabled ? Theme.of(context).colorScheme.primary : null,
-        ),
-        horizontalTitleGap: 25,
-        // Tap switches to this playlist; long-press toggles it (multi-enable).
-        onTap: () => switchToSource(source),
-        onLongPress: () => toggleSource(source),
-        contentPadding: const EdgeInsets.only(left: 20),
-        title: Text(source.name),
-        subtitle: Text(source.sourceType.label),
-        trailing: Row(
-          mainAxisSize:
-              MainAxisSize.min, // Ensures the row takes up minimal space
-          children: [
-            Offstage(
-              offstage: source.sourceType == SourceType.m3u,
-              child: IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: () async {
-                  await Error.tryAsync(
-                    () async {
-                      await Utils.refreshSource(source);
-                    },
-                    context,
-                    S.of(context).sourceRefreshed,
-                  );
-                },
+      child: FocusTraversalGroup(
+        child: ListTile(
+          leading: Icon(
+            source.enabled
+                ? Icons.radio_button_checked
+                : Icons.radio_button_unchecked,
+            color: source.enabled ? Theme.of(context).colorScheme.primary : null,
+          ),
+          horizontalTitleGap: 25,
+          onTap: () => switchToSource(source),
+          onLongPress: () => toggleSource(source),
+          contentPadding: const EdgeInsets.only(left: 20, right: 10),
+          title: Text(source.name),
+          subtitle: Text(source.sourceType.label),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (source.sourceType != SourceType.m3u)
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () async {
+                    await Error.tryAsync(
+                      () async => await Utils.refreshSource(source),
+                      context,
+                      S.of(context).sourceRefreshed,
+                    );
+                  },
+                ),
+              if (source.sourceType != SourceType.m3u)
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  onPressed: () async => await showEditDialog(context, source),
+                ),
+              IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: () async => await showConfirmDeleteDialog(source),
               ),
-            ),
-            Offstage(
-              offstage: source.sourceType == SourceType.m3u,
-              child: IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: () async => await showEditDialog(context, source),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: () async => await showConfirmDeleteDialog(source),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
