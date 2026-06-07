@@ -684,23 +684,27 @@ class _SettingsState extends State<SettingsView> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            onPressed: () async => await Error.tryAsync(
-                              () async => await Utils.refreshAllSources(),
-                              context,
-                              S.of(context).sourcesRefreshed,
-                            ),
-                            icon: const Icon(Icons.refresh),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const Setup(showAppBar: true),
+                          Focus(
+                            child: IconButton(
+                              onPressed: () async => await Error.tryAsync(
+                                () async => await Utils.refreshAllSources(),
+                                context,
+                                S.of(context).sourcesRefreshed,
                               ),
+                              icon: const Icon(Icons.refresh),
                             ),
-                            icon: const Icon(Icons.add),
+                          ),
+                          Focus(
+                            child: IconButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const Setup(showAppBar: true),
+                                ),
+                              ),
+                              icon: const Icon(Icons.add),
+                            ),
                           ),
                         ],
                       ),
