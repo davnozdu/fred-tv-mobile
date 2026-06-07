@@ -334,17 +334,13 @@ Future<Map<String, dynamic>> _parseAllPrograms(Map<String, String> args) async {
 }
 
 /// Refreshes the global "now playing" map (normalized name -> current title).
-/// Derived from the shared guide cache — no separate download/parse — so the
-/// catalog marquee and the Guide reuse one background parse. Re-derive guarded
-/// to 15 min (cheap; the underlying guide is cached 45 min / 6 h on disk).
+/// Derived from the shared guide cache — no separate download/parse. The derive
+/// always runs (it's cheap: just scanning the in-memory guide) so the catalog
+/// marquee reflects the *current* programme, not a stale snapshot. The heavy
+/// download/parse stays guarded by the guide cache (45 min memory / 6 h disk).
 Future<void> refreshNowPlaying(String epgUrl) async {
   final url = epgUrl.trim();
   if (url.isEmpty) return;
-  if (nowPlayingAt != null &&
-      nowPlaying.value.isNotEmpty &&
-      DateTime.now().difference(nowPlayingAt!) < const Duration(minutes: 15)) {
-    return;
-  }
   try {
     final guide = await fetchAllPrograms(url);
     nowPlaying.value = _deriveNowPlaying(guide);

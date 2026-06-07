@@ -63,6 +63,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   bool _archiveMode = false;
   EpgProgram? _currentProgram;
   int? _archiveStartEpoch;
+  bool _archiveSeeking = false;
   List<EpgProgram>? _programs;
   String? _liveTitle; // currently-airing programme title (live)
   late bool _isFav = _ch.favorite;
@@ -148,7 +149,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   // Loads the currently-airing programme title for the live channel (uses the
   // shared, cached guide — no extra download). Shown in the top marquee.
   Future<void> _loadLiveProgram() async {
-    if (!_isLive) return;
+    if (!_isLive || _archiveMode) return;
     final url = widget.settings.epgUrl.trim();
     if (url.isEmpty) return;
     try {
@@ -283,7 +284,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
 
   void _checkAlive() {
     final c = _controller;
-    if (c == null || exiting || _isMovie || _zapping) return;
+    if (c == null || exiting || _isMovie || _zapping || _archiveSeeking) return;
     // Only act on a real freeze — never fight a user-initiated pause.
     final playing = _isPlaying && (c.isPlaying() ?? false);
     final pos = c.videoPlayerController?.value.position ?? Duration.zero;
@@ -623,11 +624,41 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   void _seekRelative(int seconds) {
     final c = _controller;
     if (c == null) return;
+    // Archive is a Flussonic timeshift "live" stream — in-player seek is
+    // unreliable, so re-anchor the playlist to a new wall-clock point via utc
+    // (the only seek this provider honours).
+    if (_archiveMode && _archiveStartEpoch != null) {
+      _seekArchive(seconds);
+      return;
+    }
     var target = _position + Duration(seconds: seconds);
     if (target < Duration.zero) target = Duration.zero;
     final dur = _duration;
     if (dur > Duration.zero && target > dur) target = dur;
     c.seekTo(target);
+  }
+
+  // Re-anchors the archive at (current playback point ± seconds).
+  Future<void> _seekArchive(int seconds) async {
+    final base = _archiveStartEpoch;
+    if (base == null || _archiveSeeking) return;
+    _archiveSeeking = true;
+    try {
+      final cur = base + _position.inSeconds;
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+      var target = cur + seconds;
+      if (target > now - 3) target = now - 3; // don't cross the live edge
+      if (target < 0) target = 0;
+      final url = _timeshiftUrl(target);
+      if (url == null) return;
+      _archiveStartEpoch = target;
+      final sign = seconds >= 0 ? '+' : '';
+      _toast('$sign$seconds ${S.of(context).seconds}');
+      await _setup(url, true);
+    } catch (_) {
+    } finally {
+      _archiveSeeking = false;
+    }
   }
 
   Future<void> _openAudioModal() async {
@@ -659,6 +690,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   void _showControls() {
     setState(() => _controlsVisible = true);
     _resetHideTimer();
+    _loadLiveProgram(); // refresh the "now" programme each time controls open
   }
 
   void _hideControls() {

@@ -37,6 +37,7 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   Timer? _debounce;
+  Timer? _nowPlayingTimer;
   bool reachedMax = false;
   final int pageSize = 36;
   List<Channel> channels = [];
@@ -71,8 +72,16 @@ class _HomeState extends State<Home> {
           .getMediaTypes();
     }
     await load();
-    // Fetch "now playing" for the catalog tiles in the background.
-    SettingsService.getSettings().then((s) => refreshNowPlaying(s.epgUrl));
+    // Fetch "now playing" for the catalog tiles in the background, and keep it
+    // current while the catalog is open (programmes roll over).
+    SettingsService.getSettings().then((s) {
+      refreshNowPlaying(s.epgUrl);
+      _nowPlayingTimer?.cancel();
+      _nowPlayingTimer = Timer.periodic(
+        const Duration(minutes: 1),
+        (_) => refreshNowPlaying(s.epgUrl),
+      );
+    });
     if (widget.refresh) {
       Error.tryAsyncNoLoading(
         () async {
@@ -126,6 +135,7 @@ class _HomeState extends State<Home> {
     _searchFocus.dispose();
     searchController.dispose();
     _debounce?.cancel();
+    _nowPlayingTimer?.cancel();
     super.dispose();
   }
 
