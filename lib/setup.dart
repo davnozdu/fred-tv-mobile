@@ -657,14 +657,20 @@ class _SetupState extends State<Setup> {
         Icons.playlist_play,
         TextInputType.text,
         action: TextInputAction.done,
-        // Last field: close the keyboard so the remote can reach the status /
-        // install button below, and refresh the status.
+        // Last field: jump straight to the "Next" button so the wizard can be
+        // continued, and refresh the server status.
         onSubmitted: () {
-          proxyPlaylistFocus.unfocus();
           _checkProxy();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) nextButtonFocusNode.requestFocus();
+          });
         },
       ),
-      const SizedBox(height: 20),
+      const SizedBox(height: 16),
+      // Status sits right under the fields (above the keyboard area) so it is
+      // visible and the install button is easy to reach.
+      _proxyStatusBlock(),
+      const SizedBox(height: 16),
       Text(
         "${S.of(context).hlsProxyResult}:",
         style: const TextStyle(fontWeight: FontWeight.bold),
@@ -675,8 +681,6 @@ class _SetupState extends State<Setup> {
         textAlign: TextAlign.center,
         style: const TextStyle(color: Colors.lightBlueAccent),
       ),
-      const SizedBox(height: 16),
-      _proxyStatusBlock(),
     ]);
   }
 
