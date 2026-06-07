@@ -59,19 +59,16 @@ class _SetupState extends State<Setup> {
   final nextButtonFocusNode = FocusNode();
   Set<String> existingSourceNames = {};
 
-  // HLS-PROXY: three pre-filled, editable fields combined into one playlist URL.
+  // HLS-PROXY: three pre-filled values (IP, port, playlist) combined into one
+  // playlist URL. Edited via a popup so D-pad navigation between them never
+  // pops the keyboard.
   final proxyIpCtrl = TextEditingController(text: 'http://127.0.0.1');
   final proxyPortCtrl = TextEditingController(text: '9393');
   final proxyPlaylistCtrl = TextEditingController(text: 'playlist.m3u8');
-  final proxyIpFocus = FocusNode();
-  final proxyPortFocus = FocusNode();
-  final proxyPlaylistFocus = FocusNode();
 
   Timer? _proxyDebounce;
   _ProxyStatus _proxyStatus = _ProxyStatus.unknown;
   bool _proxyInstalled = false;
-  // Which proxy field is in edit mode (keyboard shown). null = navigating only.
-  int? _editingProxyField;
 
   bool get _isProxy => selectedSourceType == SourceType.hlsProxy;
 
@@ -189,36 +186,51 @@ class _SetupState extends State<Setup> {
   @override
   void initState() {
     nextButtonFocusNode.requestFocus();
-    // Proxy fields: D-pad arrows just move between fields (keyboard stays
-    // closed); pressing OK/Enter on a field opens (or re-opens) its keyboard.
-    final proxyFocuses = [proxyIpFocus, proxyPortFocus, proxyPlaylistFocus];
-    for (var i = 0; i < proxyFocuses.length; i++) {
-      final idx = i;
-      final node = proxyFocuses[i];
-      node.addListener(() {
-        if (!node.hasFocus && _editingProxyField == idx) {
-          if (mounted) setState(() => _editingProxyField = null);
-        }
-      });
-      node.onKeyEvent = (n, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-                event.logicalKey == LogicalKeyboardKey.enter ||
-                event.logicalKey == LogicalKeyboardKey.gameButtonA)) {
-          _editProxyField(idx, node);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      };
-    }
     super.initState();
   }
 
-  // Puts a proxy field into edit mode (read-write) and opens the keyboard.
-  void _editProxyField(int index, FocusNode focus) {
-    setState(() => _editingProxyField = index);
-    focus.requestFocus();
-    SystemChannels.textInput.invokeMethod('TextInput.show');
+  // Edits one proxy value in a popup (its own field autofocuses and reliably
+  // opens the keyboard); navigating the value buttons stays keyboard-free.
+  Future<void> _editProxyValue(
+    TextEditingController ctrl,
+    String label,
+    TextInputType keyboard,
+  ) async {
+    final tmp = TextEditingController(text: ctrl.text);
+    final s = S.of(context);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(label),
+        content: TextField(
+          controller: tmp,
+          autofocus: true,
+          autocorrect: false,
+          keyboardType: keyboard,
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(tmp.text),
+            child: Text(s.ok),
+          ),
+        ],
+      ),
+    );
+    tmp.dispose();
+    if (result != null) {
+      setState(() {
+        ctrl.text = result.trim();
+        formValid = _proxyValid();
+        _proxyStatus = _ProxyStatus.unknown;
+      });
+      _checkProxy();
+    }
   }
 
   @override
@@ -230,9 +242,6 @@ class _SetupState extends State<Setup> {
     proxyIpCtrl.dispose();
     proxyPortCtrl.dispose();
     proxyPlaylistCtrl.dispose();
-    proxyIpFocus.dispose();
-    proxyPortFocus.dispose();
-    proxyPlaylistFocus.dispose();
     _proxyDebounce?.cancel();
     super.dispose();
   }
@@ -274,7 +283,6 @@ class _SetupState extends State<Setup> {
         }
       });
       if (_isProxy && step == Steps.url) {
-        proxyIpFocus.requestFocus();
         _onEnterProxy();
       } else if (formPages.contains(step)) {
         focusNodes[step]?.requestFocus();
@@ -324,7 +332,7 @@ class _SetupState extends State<Setup> {
           }
         });
         if (_isProxy && step == Steps.url) {
-          proxyIpFocus.requestFocus();
+          _onEnterProxy();
         } else if (formPages.contains(step)) {
           focusNodes[step]?.requestFocus();
         }
@@ -651,95 +659,84 @@ class _SetupState extends State<Setup> {
     }
   }
 
-  // HLS-PROXY page: three pre-filled, editable fields + a live preview of the
-  // resulting playlist URL.
+  // HLS-PROXY page: narrow value column on the left, server status on the right.
   Widget _proxyPage() {
-    return getPage(S.of(context).hlsProxyQuestion, null, [
-      _proxyField(
-        0,
-        proxyIpCtrl,
-        proxyIpFocus,
-        S.of(context).hlsProxyIp,
-        Icons.lan,
-        TextInputType.url,
-        // IME "next" moves to (and starts editing) the following field.
-        onSubmitted: () => _editProxyField(1, proxyPortFocus),
+    final s = S.of(context);
+    return getPage(s.hlsProxyQuestion, null, [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left: the three values (as buttons) + the resulting link.
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _proxyValueRow(
+                  proxyIpCtrl,
+                  s.hlsProxyIp,
+                  Icons.lan,
+                  TextInputType.url,
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                _proxyValueRow(
+                  proxyPortCtrl,
+                  s.hlsProxyPort,
+                  Icons.numbers,
+                  TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                _proxyValueRow(
+                  proxyPlaylistCtrl,
+                  s.hlsProxyPlaylist,
+                  Icons.playlist_play,
+                  TextInputType.text,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _proxyUrl(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.lightBlueAccent,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 24),
+          // Right: server status + install/update button.
+          Expanded(child: Center(child: _proxyStatusBlock())),
+        ],
       ),
-      const SizedBox(height: 8),
-      _proxyField(
-        1,
-        proxyPortCtrl,
-        proxyPortFocus,
-        S.of(context).hlsProxyPort,
-        Icons.numbers,
-        TextInputType.number,
-        onSubmitted: () => _editProxyField(2, proxyPlaylistFocus),
-      ),
-      const SizedBox(height: 8),
-      _proxyField(
-        2,
-        proxyPlaylistCtrl,
-        proxyPlaylistFocus,
-        S.of(context).hlsProxyPlaylist,
-        Icons.playlist_play,
-        TextInputType.text,
-        action: TextInputAction.done,
-        // Last field: jump straight to "Next" so the wizard can be continued.
-        onSubmitted: () {
-          _checkProxy();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) nextButtonFocusNode.requestFocus();
-          });
-        },
-      ),
-      const SizedBox(height: 12),
-      Text(
-        _proxyUrl(),
-        textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 13),
-      ),
-      const SizedBox(height: 10),
-      _proxyStatusBlock(),
     ]);
   }
 
-  Widget _proxyField(
-    int index,
+  // A value shown as a focusable button; OK opens a popup to edit it (keyboard
+  // appears only there). D-pad moves between the buttons without any keyboard.
+  Widget _proxyValueRow(
     TextEditingController ctrl,
-    FocusNode focus,
     String label,
     IconData icon,
     TextInputType keyboard, {
-    TextInputAction action = TextInputAction.next,
-    VoidCallback? onSubmitted,
+    bool autofocus = false,
   }) {
-    // Read-only until activated with OK, so D-pad navigation between fields does
-    // not pop the keyboard. OK (onTap) enters edit mode and shows the keyboard;
-    // pressing OK again re-shows it after Back closed it.
-    final editing = _editingProxyField == index;
-    return TextField(
-      controller: ctrl,
-      focusNode: focus,
-      autocorrect: false,
-      readOnly: !editing,
-      keyboardType: keyboard,
-      textInputAction: action,
-      onTap: () => _editProxyField(index, focus),
-      onSubmitted: (_) => onSubmitted?.call(),
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        border: const OutlineInputBorder(),
-        prefixIcon: Icon(icon),
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        autofocus: autofocus,
+        dense: true,
+        leading: Icon(icon),
+        title: Text(label, style: const TextStyle(fontSize: 13)),
+        subtitle: Text(
+          ctrl.text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16, color: Colors.white),
+        ),
+        trailing: const Icon(Icons.edit, size: 18),
+        onTap: () => _editProxyValue(ctrl, label, keyboard),
       ),
-      onChanged: (_) {
-        setState(() {
-          formValid = _proxyValid();
-          _proxyStatus = _ProxyStatus.unknown;
-        });
-        _scheduleProxyCheck();
-      },
     );
   }
 
