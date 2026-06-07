@@ -80,10 +80,22 @@ class MyApp extends StatelessWidget {
         return _KeyboardNavFix(
           child: CallbackShortcuts(
             bindings: {
-              CustomShortcut(
-                const SingleActivator(LogicalKeyboardKey.escape),
-              ): () {
-                if (_isEditingText) return;
+              const SingleActivator(LogicalKeyboardKey.escape): () {
+                if (_isEditingText) {
+                  final focus = FocusManager.instance.primaryFocus;
+                  focus?.unfocus();
+                  focus?.nextFocus();
+                  return;
+                }
+                navigatorKey.currentState?.maybePop();
+              },
+              const SingleActivator(LogicalKeyboardKey.back): () {
+                if (_isEditingText) {
+                  final focus = FocusManager.instance.primaryFocus;
+                  focus?.unfocus();
+                  focus?.nextFocus();
+                  return;
+                }
                 navigatorKey.currentState?.maybePop();
               },
               CustomShortcut(

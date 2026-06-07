@@ -392,7 +392,17 @@ class _SetupState extends State<Setup> {
     return PopScope(
       canPop: step == Steps.welcome,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) prevStep();
+        if (didPop) return;
+        final focus = FocusManager.instance.primaryFocus;
+        final isEditing =
+            focus?.context?.findAncestorWidgetOfExactType<EditableText>() !=
+            null;
+        if (isEditing) {
+          focus?.unfocus();
+          focus?.nextFocus();
+          return;
+        }
+        prevStep();
       },
       child: Scaffold(
         appBar: widget.showAppBar ? AppBar() : null,
