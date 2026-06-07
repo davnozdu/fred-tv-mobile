@@ -77,22 +77,24 @@ class MyApp extends StatelessWidget {
         FormBuilderLocalizations.delegate,
       ],
       builder: (context, child) {
-        return CallbackShortcuts(
-          bindings: {
-            CustomShortcut(
-              const SingleActivator(LogicalKeyboardKey.escape),
-            ): () {
-              if (_isEditingText) return;
-              navigatorKey.currentState?.maybePop();
+        return _KeyboardNavFix(
+          child: CallbackShortcuts(
+            bindings: {
+              CustomShortcut(
+                const SingleActivator(LogicalKeyboardKey.escape),
+              ): () {
+                if (_isEditingText) return;
+                navigatorKey.currentState?.maybePop();
+              },
+              CustomShortcut(
+                const SingleActivator(LogicalKeyboardKey.backspace),
+              ): () {
+                if (_isEditingText) return;
+                navigatorKey.currentState?.maybePop();
+              },
             },
-            CustomShortcut(
-              const SingleActivator(LogicalKeyboardKey.backspace),
-            ): () {
-              if (_isEditingText) return;
-              navigatorKey.currentState?.maybePop();
-            },
-          },
-          child: child ?? const SizedBox.shrink(),
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
       theme: ThemeData(
@@ -154,4 +156,52 @@ class MyApp extends StatelessWidget {
           : const Setup(),
     );
   }
+}
+
+/// Android TV fix: when the soft keyboard is dismissed (e.g. with Back) while a
+/// text field still holds focus, the D-pad arrows keep moving the text cursor
+/// and navigation feels "dead". When the keyboard closes we move focus to the
+/// next focusable widget so the remote can navigate again.
+class _KeyboardNavFix extends StatefulWidget {
+  final Widget child;
+  const _KeyboardNavFix({required this.child});
+
+  @override
+  State<_KeyboardNavFix> createState() => _KeyboardNavFixState();
+}
+
+class _KeyboardNavFixState extends State<_KeyboardNavFix>
+    with WidgetsBindingObserver {
+  double _lastInset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final inset = WidgetsBinding
+            .instance.platformDispatcher.implicitView?.viewInsets.bottom ??
+        0;
+    if (_lastInset > 0 && inset == 0) {
+      final focus = FocusManager.instance.primaryFocus;
+      final editing =
+          focus?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+      if (editing && !focus!.nextFocus()) {
+        focus.unfocus();
+      }
+    }
+    _lastInset = inset;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
