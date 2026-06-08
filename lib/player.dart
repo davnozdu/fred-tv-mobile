@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:marquee/marquee.dart';
 import 'package:open_tv/backend/epg.dart';
+import 'package:open_tv/backend/launch_bridge.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/id_data.dart';
@@ -95,6 +96,9 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Keep the box/screen awake during playback (some TV boxes ignore the
+    // player's own wakelock and fall asleep mid-stream).
+    LaunchBridge.setKeepScreenOn(true);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
@@ -1078,6 +1082,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    LaunchBridge.setKeepScreenOn(false);
     _hideTimer?.cancel();
     _ticker?.cancel();
     _watchdog?.cancel();

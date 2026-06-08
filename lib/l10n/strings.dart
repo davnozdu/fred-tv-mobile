@@ -154,10 +154,15 @@ class S {
     'Активний плейлист: $name',
   );
   String get switchPlaylistHint => _t(
-    'Tap a playlist to make it the only active one; long-press to toggle',
-    'Нажмите на плейлист, чтобы сделать его активным; удержание — вкл/выкл',
-    'Натисніть на плейлист, щоб зробити його активним; утримання — увімк/вимк',
+    'Select the active playlist with the radio button on the left',
+    'Выберите активный плейлист кружком слева',
+    'Виберіть активний плейлист кружечком зліва',
   );
+  String get makeActive =>
+      _t('Make active', 'Сделать активным', 'Зробити активним');
+  String get editSourceTooltip => _t('Edit', 'Изменить', 'Змінити');
+  String get refreshSourceTooltip => _t('Refresh', 'Обновить', 'Оновити');
+  String get deleteSourceTooltip => _t('Delete', 'Удалить', 'Видалити');
 
   // Common
   String get cancel => _t('Cancel', 'Отмена', 'Скасувати');

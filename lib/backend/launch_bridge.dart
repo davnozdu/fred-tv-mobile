@@ -27,6 +27,15 @@ class LaunchBridge {
     } catch (_) {}
   }
 
+  /// Keeps the screen/device awake (FLAG_KEEP_SCREEN_ON) while [on] is true so
+  /// the TV box does not go to sleep during playback.
+  static Future<void> setKeepScreenOn(bool on) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('setKeepScreenOn', {'on': on});
+    } catch (_) {}
+  }
+
   /// Whether an app with [package] is installed on the device.
   static Future<bool> isPackageInstalled(String package) async {
     if (!Platform.isAndroid) return false;

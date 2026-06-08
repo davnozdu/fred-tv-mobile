@@ -160,50 +160,73 @@ class _SettingsState extends State<SettingsView> {
   }
 
   Widget getSource(Source source) {
+    final s = S.of(context);
+    final active = source.enabled;
+    final primary = Theme.of(context).colorScheme.primary;
+    // A row of individually focusable controls (no single "tile" blob), so the
+    // D-pad can reach each action button (switch / refresh / edit / delete).
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       elevation: 5,
-      child: FocusTraversalGroup(
-        child: ListTile(
-          leading: Icon(
-            source.enabled
-                ? Icons.radio_button_checked
-                : Icons.radio_button_unchecked,
-            color: source.enabled ? Theme.of(context).colorScheme.primary : null,
-          ),
-          horizontalTitleGap: 25,
-          onTap: () => switchToSource(source),
-          onLongPress: () => toggleSource(source),
-          contentPadding: const EdgeInsets.only(left: 20, right: 10),
-          title: Text(source.name),
-          subtitle: Text(source.sourceType.label),
-          trailing: FocusTraversalGroup(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (source.sourceType != SourceType.m3u)
-                  IconButton(
-                    icon: const Icon(Icons.refresh),
-                    onPressed: () async {
-                      await Error.tryAsync(
-                        () async => await Utils.refreshSource(source),
-                        context,
-                        S.of(context).sourceRefreshed,
-                      );
-                    },
-                  ),
-                if (source.sourceType != SourceType.m3u)
-                  IconButton(
-                    icon: const Icon(Icons.edit),
-                    onPressed: () async => await showEditDialog(context, source),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: () async => await showConfirmDeleteDialog(source),
-                ),
-              ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: s.makeActive,
+              icon: Icon(
+                active
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                color: active ? primary : null,
+              ),
+              onPressed: () => switchToSource(source),
             ),
-          ),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    source.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    source.sourceType.label,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            if (source.sourceType != SourceType.m3u)
+              IconButton(
+                tooltip: s.refreshSourceTooltip,
+                icon: const Icon(Icons.refresh),
+                onPressed: () async {
+                  await Error.tryAsync(
+                    () async => await Utils.refreshSource(source),
+                    context,
+                    s.sourceRefreshed,
+                  );
+                },
+              ),
+            if (source.sourceType != SourceType.m3u)
+              IconButton(
+                tooltip: s.editSourceTooltip,
+                icon: const Icon(Icons.edit),
+                onPressed: () async => await showEditDialog(context, source),
+              ),
+            IconButton(
+              tooltip: s.deleteSourceTooltip,
+              icon: const Icon(Icons.delete),
+              onPressed: () async => await showConfirmDeleteDialog(source),
+            ),
+          ],
         ),
       ),
     );
