@@ -52,6 +52,11 @@ class S {
     'Немає архівних передач для цього каналу',
   );
   String get selectAudio => _t('Select audio', 'Выбор аудио', 'Вибір аудіо');
+  String programLeft(int min) => _t(
+    '$min min left',
+    'осталось $min мин',
+    'залишилось $min хв',
+  );
 
   // Channel context menu
   String get play => _t('Play', 'Смотреть', 'Дивитися');

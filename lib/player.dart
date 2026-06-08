@@ -66,7 +66,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   int? _archiveStartEpoch;
   bool _archiveSeeking = false;
   List<EpgProgram>? _programs;
-  String? _liveTitle; // currently-airing programme title (live)
+  EpgProgram? _liveProgram; // currently-airing programme (live)
   late bool _isFav = _ch.favorite;
 
   // Current channel (the zapping cursor).
@@ -74,7 +74,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
 
   // Programme shown in the top marquee: archive programme or live "now".
   String? get _programText =>
-      _archiveMode ? _currentProgram?.title : _liveTitle;
+      _archiveMode ? _currentProgram?.title : _liveProgram?.title;
   Timer? _hideTimer;
   Timer? _ticker;
   Timer? _watchdog;
@@ -160,14 +160,14 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
       final guide = await fetchAllPrograms(url);
       final progs = epgProgramsFor(guide, _ch.name);
       final now = DateTime.now().toUtc();
-      String? title;
+      EpgProgram? current;
       for (final p in progs) {
         if (!p.start.isAfter(now) && p.stop.isAfter(now)) {
-          title = p.title;
+          current = p;
           break;
         }
       }
-      if (mounted) setState(() => _liveTitle = title);
+      if (mounted) setState(() => _liveProgram = current);
     } catch (_) {}
   }
 
@@ -182,7 +182,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
       _currentProgram = null;
       _archiveStartEpoch = null;
       _programs = null;
-      _liveTitle = null;
+      _liveProgram = null;
       _isFav = _ch.favorite;
       _aspectIdx = 0;
     });
@@ -538,6 +538,13 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     final d = epgLocal(utc);
     String two(int v) => v.toString().padLeft(2, '0');
     return "${two(d.day)}.${two(d.month)} ${two(d.hour)}:${two(d.minute)}";
+  }
+
+  // HH:mm in the EPG (Moscow) timezone.
+  String _hhmm(DateTime utc) {
+    final d = epgLocal(utc);
+    String two(int v) => v.toString().padLeft(2, '0');
+    return "${two(d.hour)}:${two(d.minute)}";
   }
 
   // ---------------------------------------------------------------------------
@@ -978,6 +985,58 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
       );
     }
     if (!_isMovie) {
+      final p = _liveProgram;
+      // Programme progress bar (start → end of the current show), so it's clear
+      // how much time is left until it ends.
+      if (p != null && p.stop.isAfter(p.start)) {
+        final now = DateTime.now().toUtc();
+        final totalSec = p.stop.difference(p.start).inSeconds;
+        final elapsedSec = now.difference(p.start).inSeconds.clamp(0, totalSec);
+        final value = (elapsedSec / totalSec).clamp(0.0, 1.0).toDouble();
+        final leftMin = p.stop.difference(now).inMinutes.clamp(0, 100000).toInt();
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text(
+                  _hhmm(p.start),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: value,
+                      minHeight: 6,
+                      backgroundColor: Colors.white24,
+                      valueColor: const AlwaysStoppedAnimation(Colors.blue),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _hhmm(p.stop),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.fiber_manual_record, color: Colors.red, size: 12),
+                const SizedBox(width: 6),
+                Text(
+                  "LIVE · ${S.of(context).programLeft(leftMin)}",
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        );
+      }
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: const [
