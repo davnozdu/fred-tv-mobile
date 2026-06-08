@@ -709,27 +709,25 @@ class _SettingsState extends State<SettingsView> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Focus(
-                            child: IconButton(
-                              onPressed: () async => await Error.tryAsync(
-                                () async => await Utils.refreshAllSources(),
-                                context,
-                                S.of(context).sourcesRefreshed,
-                              ),
-                              icon: const Icon(Icons.refresh),
+                          IconButton(
+                            tooltip: s.refreshSourceTooltip,
+                            onPressed: () async => await Error.tryAsync(
+                              () async => await Utils.refreshAllSources(),
+                              context,
+                              S.of(context).sourcesRefreshed,
                             ),
+                            icon: const Icon(Icons.refresh),
                           ),
-                          Focus(
-                            child: IconButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const Setup(showAppBar: true),
-                                ),
+                          IconButton(
+                            tooltip: s.addPlaylist,
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const Setup(showAppBar: true),
                               ),
-                              icon: const Icon(Icons.add),
                             ),
+                            icon: const Icon(Icons.add),
                           ),
                         ],
                       ),

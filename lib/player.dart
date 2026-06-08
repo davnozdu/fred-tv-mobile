@@ -154,7 +154,10 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   // shared, cached guide — no extra download). Shown in the top marquee.
   Future<void> _loadLiveProgram() async {
     if (!_isLive || _archiveMode) return;
-    final url = widget.settings.epgUrl.trim();
+    // Use the same EPG source as the Guide so the live programme always matches.
+    final url = widget.settings.extendedArchive
+        ? archiveEpgUrl
+        : widget.settings.epgUrl.trim();
     if (url.isEmpty) return;
     try {
       final guide = await fetchAllPrograms(url);

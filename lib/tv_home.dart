@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_tv/backend/launch_bridge.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
@@ -25,6 +26,7 @@ class TvHome extends StatefulWidget {
 
 class _TvHomeState extends State<TvHome> {
   bool _autoOpened = false;
+  DateTime? _lastBackAt;
 
   @override
   void initState() {
@@ -123,8 +125,26 @@ class _TvHomeState extends State<TvHome> {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
-    return Scaffold(
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final now = DateTime.now();
+        if (_lastBackAt == null ||
+            now.difference(_lastBackAt!) > const Duration(seconds: 2)) {
+          _lastBackAt = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(S.of(context).pressAgainToExit),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             child: Wrap(
@@ -194,6 +214,7 @@ class _TvHomeState extends State<TvHome> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
