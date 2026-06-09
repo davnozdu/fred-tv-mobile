@@ -48,6 +48,11 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
+        <!-- Read-only flag so the home launcher can decide to autostart us. -->
+        <provider
+            android:name=".AutostartProvider"
+            android:authorities="cz.smotrim.player.autostart"
+            android:exported="true" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
