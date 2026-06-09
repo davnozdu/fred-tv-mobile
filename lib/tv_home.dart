@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:open_tv/backend/launch_bridge.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
+import 'package:open_tv/boot_wait_screen.dart';
 import 'package:open_tv/home.dart';
 import 'package:open_tv/menu_tile.dart';
 import 'package:open_tv/models/autostart_action.dart';
@@ -11,7 +12,6 @@ import 'package:open_tv/models/filters.dart';
 import 'package:open_tv/models/home_manager.dart';
 import 'package:open_tv/models/settings.dart';
 import 'package:open_tv/models/view_type.dart';
-import 'package:open_tv/player.dart';
 import 'package:open_tv/settings_view.dart';
 import 'package:open_tv/tv_categories.dart';
 import 'package:open_tv/tv_guide.dart';
@@ -80,16 +80,17 @@ class _TvHomeState extends State<TvHome> {
     } catch (_) {}
   }
 
+  // Autostart playback goes through the boot-wait screen so it waits for the
+  // network to come up after a reboot instead of showing a bare spinner.
   void _play(Settings settings, Channel ch,
       [List<Channel>? playlist, int index = 0]) {
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => Player(
+        builder: (_) => BootWaitScreen(
           channel: ch,
           settings: settings,
           playlist: playlist,
-          playlistIndex: index,
         ),
       ),
     );

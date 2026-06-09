@@ -486,6 +486,11 @@ class S {
   );
   String get openSettings =>
       _t('Open settings', 'Открыть настройки', 'Відкрити налаштування');
+  String get waitingForNetwork => _t(
+    'Waiting for the network and required components…',
+    'Ожидаем запуск сети и необходимых компонентов…',
+    'Очікуємо запуск мережі та необхідних компонентів…',
+  );
   String get autostartMenu => _t('Menu', 'Меню', 'Меню');
   String get autostartLast =>
       _t('Last channel', 'Последний канал', 'Останній канал');
