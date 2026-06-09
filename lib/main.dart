@@ -21,6 +21,11 @@ import 'package:open_tv/tv_home.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Cap decoded-image memory (default is ~100 MB) so channel logos don't
+  // balloon RAM on weak TV boxes.
+  PaintingBinding.instance.imageCache
+    ..maximumSizeBytes = 48 << 20 // ~48 MB
+    ..maximumSize = 300;
   final hasSources = await Sql.hasSources();
   final settings = await SettingsService.getSettings();
   final hasTouchScreen = await Utils.hasTouchScreen();

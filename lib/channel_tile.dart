@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:marquee/marquee.dart';
 import 'package:open_tv/backend/epg.dart';
+import 'package:open_tv/backend/logo_cache.dart';
 import 'package:open_tv/l10n/strings.dart';
 import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
@@ -270,6 +271,7 @@ class _ChannelTileState extends State<ChannelTile> {
                   child: widget.channel.image != null
                       ? CachedNetworkImage(
                           imageUrl: widget.channel.image!,
+                          cacheManager: LogoCache.instance,
                           // Logos render at ~84px in the grid; decoding at 160
                           // (instead of 300) cuts image memory ~3.5x per logo.
                           memCacheHeight: 160,
