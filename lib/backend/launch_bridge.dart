@@ -36,6 +36,26 @@ class LaunchBridge {
     } catch (_) {}
   }
 
+  /// Whether the "display over other apps" (SYSTEM_ALERT_WINDOW) permission is
+  /// granted — required so the boot receiver can launch the app on Android 12+.
+  static Future<bool> hasOverlayPermission() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      final v = await _channel.invokeMethod<bool>('hasOverlayPermission');
+      return v ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Opens the system screen to grant the overlay permission.
+  static Future<void> requestOverlayPermission() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod('requestOverlayPermission');
+    } catch (_) {}
+  }
+
   /// Whether an app with [package] is installed on the device.
   static Future<bool> isPackageInstalled(String package) async {
     if (!Platform.isAndroid) return false;

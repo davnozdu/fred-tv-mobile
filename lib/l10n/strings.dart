@@ -471,6 +471,21 @@ class S {
   String get autostartAction =>
       _t('What to open on autostart', 'Что открывать при автозапуске',
           'Що відкривати при автозапуску');
+  String get overlayNeededTitle => _t(
+    'Permission required',
+    'Нужно разрешение',
+    'Потрібен дозвіл',
+  );
+  String get overlayNeededBody => _t(
+    'For autostart to work, Android requires the "Display over other apps" '
+        'permission. Open settings and enable it for Smotrim CZ Player.',
+    'Чтобы автозапуск работал, Android требует разрешение «Поверх других '
+        'приложений». Откройте настройки и включите его для Smotrim CZ Player.',
+    'Щоб автозапуск працював, Android вимагає дозвіл «Поверх інших застосунків». '
+        'Відкрийте налаштування та увімкніть його для Smotrim CZ Player.',
+  );
+  String get openSettings =>
+      _t('Open settings', 'Открыть настройки', 'Відкрити налаштування');
   String get autostartMenu => _t('Menu', 'Меню', 'Меню');
   String get autostartLast =>
       _t('Last channel', 'Последний канал', 'Останній канал');

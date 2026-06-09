@@ -394,6 +394,35 @@ class _SettingsState extends State<SettingsView> {
     }
   }
 
+  // Android 12+/14 block the boot receiver from launching the app unless the
+  // app is exempt — the overlay permission grants that exemption.
+  Future<void> _ensureOverlayPermission() async {
+    final granted = await LaunchBridge.hasOverlayPermission();
+    if (granted || !mounted) return;
+    final s = S.of(context);
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.overlayNeededTitle),
+        content: Text(s.overlayNeededBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(s.later),
+          ),
+          FilledButton(
+            autofocus: true,
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              LaunchBridge.requestOverlayPermission();
+            },
+            child: Text(s.openSettings),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showAutostartActionDialog() async {
     final s = S.of(context);
     await showDialog(
@@ -648,10 +677,11 @@ class _SettingsState extends State<SettingsView> {
                     subtitle: Text(s.autostartOnBootSub),
                     trailing: Switch(
                       value: settings.autostartOnBoot,
-                      onChanged: (bool value) {
+                      onChanged: (bool value) async {
                         setState(() => settings.autostartOnBoot = value);
                         updateSettings();
                         LaunchBridge.setAutostartEnabled(value);
+                        if (value) await _ensureOverlayPermission();
                       },
                     ),
                   ),

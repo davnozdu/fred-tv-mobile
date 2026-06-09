@@ -1,6 +1,9 @@
 package dev.fredol.open_tv
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -43,6 +46,31 @@ class MainActivity : FlutterActivity() {
                                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                             } else {
                                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                            }
+                        }
+                        result.success(null)
+                    }
+                    "hasOverlayPermission" -> {
+                        // SYSTEM_ALERT_WINDOW exempts the app from Android 12+/14
+                        // background-activity-launch limits, so the boot receiver
+                        // can actually start the app.
+                        result.success(Settings.canDrawOverlays(this))
+                    }
+                    "requestOverlayPermission" -> {
+                        try {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:$packageName")
+                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) {
+                            try {
+                                startActivity(
+                                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            } catch (_: Exception) {
                             }
                         }
                         result.success(null)
