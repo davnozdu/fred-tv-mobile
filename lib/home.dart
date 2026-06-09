@@ -53,13 +53,25 @@ class _HomeState extends State<Home> {
   void initState() {
     super.initState();
     _scrollController.addListener(_scrollListener);
-    // Re-show the soft keyboard whenever the search field regains focus (on TV,
-    // pressing Back hides it and it would otherwise stay hidden).
-    _searchFocus.addListener(() {
-      if (_searchFocus.hasFocus) {
+    // TV remote: OK opens (or re-opens) the keyboard on the search field; Down
+    // moves focus to the channel list. (This box won't show the keyboard on
+    // focus alone, and arrows otherwise just move the text caret.)
+    _searchFocus.onKeyEvent = (n, event) {
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      final k = event.logicalKey;
+      if (k == LogicalKeyboardKey.select ||
+          k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.gameButtonA) {
         SystemChannels.textInput.invokeMethod('TextInput.show');
+        return KeyEventResult.handled;
       }
-    });
+      if (k == LogicalKeyboardKey.arrowDown) {
+        n.unfocus();
+        n.nextFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    };
     initializeAsync();
   }
 
@@ -208,22 +220,28 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      // If this Home is a pushed screen (e.g. a category opened from the TV
+      // menu), Back should just return there. Only the root Home (phone mode)
+      // uses the double-press-to-exit.
+      canPop: Navigator.of(context).canPop(),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         final now = DateTime.now();
-        if (_lastPressedAt == null ||
-            now.difference(_lastPressedAt!) > const Duration(seconds: 2)) {
-          _lastPressedAt = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(S.of(context).pressAgainToExit),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        } else {
-          SystemNavigator.pop();
+        final last = _lastPressedAt;
+        if (last != null && now.difference(last) < const Duration(milliseconds: 150)) {
+          return; // duplicate Back event from the same press
         }
+        if (last != null && now.difference(last) < const Duration(seconds: 2)) {
+          SystemNavigator.pop();
+          return;
+        }
+        _lastPressedAt = now;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(S.of(context).pressAgainToExit),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       },
       child: Scaffold(
         appBar: widget.home.node != null

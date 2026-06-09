@@ -24,11 +24,23 @@ class _ChannelPickerState extends State<ChannelPicker> {
   @override
   void initState() {
     super.initState();
-    _searchFocus.addListener(() {
-      if (_searchFocus.hasFocus) {
+    // TV remote: OK (re)opens the keyboard; Down moves focus to the list.
+    _searchFocus.onKeyEvent = (n, event) {
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      final k = event.logicalKey;
+      if (k == LogicalKeyboardKey.select ||
+          k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.gameButtonA) {
         SystemChannels.textInput.invokeMethod('TextInput.show');
+        return KeyEventResult.handled;
       }
-    });
+      if (k == LogicalKeyboardKey.arrowDown) {
+        n.unfocus();
+        n.nextFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    };
     _load();
   }
 

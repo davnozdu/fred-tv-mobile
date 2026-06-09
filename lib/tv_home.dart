@@ -130,18 +130,23 @@ class _TvHomeState extends State<TvHome> {
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         final now = DateTime.now();
-        if (_lastBackAt == null ||
-            now.difference(_lastBackAt!) > const Duration(seconds: 2)) {
-          _lastBackAt = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(S.of(context).pressAgainToExit),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        } else {
-          SystemNavigator.pop();
+        final last = _lastBackAt;
+        // The Back key fires twice on this box (key shortcut + platform back);
+        // ignore the duplicate that arrives within ~150ms of the first.
+        if (last != null && now.difference(last) < const Duration(milliseconds: 150)) {
+          return;
         }
+        if (last != null && now.difference(last) < const Duration(seconds: 2)) {
+          SystemNavigator.pop(); // genuine second press → exit
+          return;
+        }
+        _lastBackAt = now;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(S.of(context).pressAgainToExit),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       },
       child: Scaffold(
         body: SafeArea(

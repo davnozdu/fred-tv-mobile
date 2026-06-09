@@ -689,51 +689,28 @@ class _SettingsState extends State<SettingsView> {
                     onTap: () async => await _showEpgUrlDialog(),
                   ),
                   const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Flexible(
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 10),
-                          child: Text(
-                            s.sources,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 10),
+                    child: Text(
+                      s.sources,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: s.refreshSourceTooltip,
-                            onPressed: () async => await Error.tryAsync(
-                              () async => await Utils.refreshAllSources(),
-                              context,
-                              S.of(context).sourcesRefreshed,
-                            ),
-                            icon: const Icon(Icons.refresh),
-                          ),
-                          IconButton(
-                            tooltip: s.addPlaylist,
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const Setup(showAppBar: true),
-                              ),
-                            ),
-                            icon: const Icon(Icons.add),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 10),
+                  // Refresh-all as a focusable list item (the old header icons
+                  // could not be focused with the D-pad).
+                  ListTile(
+                    leading: const Icon(Icons.refresh),
+                    title: Text(s.refreshAllSourcesTitle),
+                    onTap: () async => await Error.tryAsync(
+                      () async => await Utils.refreshAllSources(),
+                      context,
+                      S.of(context).sourcesRefreshed,
+                    ),
+                  ),
                   ListTile(
                     leading: const Icon(Icons.playlist_add),
                     title: Text(s.addPlaylist),

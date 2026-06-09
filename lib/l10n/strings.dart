@@ -165,6 +165,8 @@ class S {
   );
   String get makeActive =>
       _t('Make active', 'Сделать активным', 'Зробити активним');
+  String get refreshAllSourcesTitle =>
+      _t('Refresh all', 'Обновить все', 'Оновити всі');
   String get editSourceTooltip => _t('Edit', 'Изменить', 'Змінити');
   String get refreshSourceTooltip => _t('Refresh', 'Обновить', 'Оновити');
   String get deleteSourceTooltip => _t('Delete', 'Удалить', 'Видалити');

@@ -87,20 +87,22 @@ class _TvGuideState extends State<TvGuide> {
       }
     });
     _searchFocus.onKeyEvent = (node, event) {
-      if (event is KeyDownEvent &&
-          event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      final k = event.logicalKey;
+      // OK (re)opens the keyboard — this box won't show it on focus alone.
+      if (k == LogicalKeyboardKey.select ||
+          k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.gameButtonA) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.arrowDown) {
+        _searchFocus.unfocus();
         _focusNode.requestFocus();
         return KeyEventResult.handled;
       }
       return KeyEventResult.ignored;
     };
-    // Re-show the soft keyboard whenever the search box regains focus (on TV,
-    // pressing Back hides it and it would otherwise stay hidden).
-    _searchFocus.addListener(() {
-      if (_searchFocus.hasFocus) {
-        SystemChannels.textInput.invokeMethod('TextInput.show');
-      }
-    });
     _load();
   }
 

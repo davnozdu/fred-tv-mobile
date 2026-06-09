@@ -92,13 +92,14 @@ class MyApp extends StatelessWidget {
                 navigatorKey.currentState?.maybePop();
               },
               const SingleActivator(LogicalKeyboardKey.goBack): () {
+                // Only handle the in-keyboard case; the system Back button drives
+                // route navigation (PopScope), so don't pop here too — otherwise
+                // Back fires twice (over-pops / double-exits).
                 if (_isEditingText) {
                   final focus = FocusManager.instance.primaryFocus;
                   focus?.unfocus();
                   focus?.nextFocus();
-                  return;
                 }
-                navigatorKey.currentState?.maybePop();
               },
               CustomShortcut(
                 const SingleActivator(LogicalKeyboardKey.backspace),
