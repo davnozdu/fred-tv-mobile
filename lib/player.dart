@@ -80,6 +80,8 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
   Timer? _watchdog;
   Duration _lastPos = Duration.zero;
   DateTime _lastProgress = DateTime.now();
+  bool _reconnecting = false;
+  int _reconnectAttempts = 0;
   int _autoBufferSec = 20;
   final List<DateTime> _rebufferTimes = [];
   final FocusNode _focusNode = FocusNode();
@@ -302,7 +304,18 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     }
     if (DateTime.now().difference(_lastProgress) > const Duration(seconds: 5)) {
       _lastProgress = DateTime.now();
-      _reconnect();
+      _reconnectNow();
+    }
+  }
+
+  // Guarded immediate reconnect (used by the freeze watchdog).
+  Future<void> _reconnectNow() async {
+    if (_reconnecting) return;
+    _reconnecting = true;
+    try {
+      await _reconnect();
+    } finally {
+      _reconnecting = false;
     }
   }
 
@@ -416,6 +429,7 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.play:
         _lastProgress = DateTime.now();
+        _reconnectAttempts = 0; // playback resumed → reset backoff
         if (mounted) setState(() => _isPlaying = true);
         break;
       case BetterPlayerEventType.pause:
@@ -449,12 +463,22 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
     }
   }
 
-  // Reconnect live/archive streams on error or hard drop (not movies).
+  // Reconnect live/archive streams on error or hard drop (not movies), with a
+  // backoff so a permanently-dead stream doesn't churn every second.
   Future<void> _onDisconnect() async {
-    if (!mounted || exiting || _isMovie || _dataSource == null) return;
-    await Future.delayed(const Duration(seconds: 1));
-    if (!mounted || exiting) return;
-    await _reconnect();
+    if (!mounted || exiting || _isMovie || _dataSource == null || _reconnecting) {
+      return;
+    }
+    _reconnecting = true;
+    try {
+      final delaySec = (1 << _reconnectAttempts.clamp(0, 4)).clamp(1, 16);
+      _reconnectAttempts++;
+      await Future.delayed(Duration(seconds: delaySec));
+      if (!mounted || exiting) return;
+      await _reconnect();
+    } finally {
+      _reconnecting = false;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -835,7 +859,9 @@ class _PlayerState extends State<Player> with WidgetsBindingObserver {
             maxLines: 1,
             textDirection: TextDirection.ltr,
           )..layout();
-          if (tp.width > constraints.maxWidth) {
+          final overflows = tp.width > constraints.maxWidth;
+          tp.dispose();
+          if (overflows) {
             return Marquee(
               text: text,
               style: style,

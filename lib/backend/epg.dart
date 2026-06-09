@@ -377,9 +377,22 @@ final _progStartRegex = RegExp(r'start="(\d{14})\s*([+\-]\d{4})?"');
 final _progStopRegex = RegExp(r'stop="(\d{14})\s*([+\-]\d{4})?"');
 final _titleRegex = RegExp(r'<title[^>]*>(.*?)</title>', dotAll: true);
 
-// Per-channel programme cache (short TTL — schedules change slowly).
+// Per-channel programme cache (short TTL — schedules change slowly). Capped so
+// it can't grow unbounded as the user opens many channels' archives.
 final Map<String, List<EpgProgram>> _programCache = {};
 final Map<String, DateTime> _programCacheAt = {};
+const _programCacheMax = 40;
+
+void _capProgramCache() {
+  if (_programCache.length <= _programCacheMax) return;
+  final keys = _programCacheAt.keys.toList()
+    ..sort((a, b) => _programCacheAt[a]!.compareTo(_programCacheAt[b]!));
+  final toRemove = _programCache.length - _programCacheMax;
+  for (var i = 0; i < toRemove && i < keys.length; i++) {
+    _programCache.remove(keys[i]);
+    _programCacheAt.remove(keys[i]);
+  }
+}
 
 /// Returns programmes for the channel matching [channelName]. The heavy
 /// download + gzip + parse runs in a background isolate (UI stays responsive),
@@ -401,6 +414,7 @@ Future<List<EpgProgram>> fetchPrograms(
   if (fromDisk != null) {
     _programCache[cacheKey] = fromDisk;
     _programCacheAt[cacheKey] = DateTime.now();
+    _capProgramCache();
     return fromDisk;
   }
   final raw = await compute(_downloadAndParsePrograms, {
@@ -410,6 +424,7 @@ Future<List<EpgProgram>> fetchPrograms(
   final programs = raw.map(_programFromMap).toList();
   _programCache[cacheKey] = programs;
   _programCacheAt[cacheKey] = DateTime.now();
+  _capProgramCache();
   await _writeProgramDisk(cacheKey, raw);
   return programs;
 }

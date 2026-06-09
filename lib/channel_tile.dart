@@ -210,6 +210,7 @@ class _ChannelTileState extends State<ChannelTile> {
                   textDirection: TextDirection.ltr,
                 )..layout();
                 final overflows = tp.width > constraints.maxWidth;
+                tp.dispose();
                 // Scroll only when the text doesn't fit AND the tile is focused
                 // (keeps the list light on weak boxes).
                 if (overflows && _focusNode.hasFocus) {
@@ -269,8 +270,10 @@ class _ChannelTileState extends State<ChannelTile> {
                   child: widget.channel.image != null
                       ? CachedNetworkImage(
                           imageUrl: widget.channel.image!,
-                          memCacheHeight: 300,
-                          memCacheWidth: 300,
+                          // Logos render at ~84px in the grid; decoding at 160
+                          // (instead of 300) cuts image memory ~3.5x per logo.
+                          memCacheHeight: 160,
+                          memCacheWidth: 160,
                           fit: BoxFit.contain,
                           errorWidget: (_, __, ___) => const Icon(
                             Icons.tv,

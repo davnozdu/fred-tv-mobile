@@ -52,6 +52,7 @@ class _MenuTileState extends State<MenuTile> {
       textDirection: TextDirection.ltr,
     )..layout();
     final overflows = tp.width > labelWidth;
+    tp.dispose();
     return SizedBox(
       width: labelWidth,
       height: fontSize * 1.5,
