@@ -221,6 +221,33 @@ class _SetupState extends State<Setup> {
   @override
   void initState() {
     nextButtonFocusNode.requestFocus();
+    // TV remotes: this box only opens the keyboard on a touch tap, and a focused
+    // text field traps the D-pad (arrows move the caret). So on the form fields:
+    //  • OK/Enter opens the keyboard;
+    //  • Up/Down move focus out of the field instead of being swallowed.
+    for (final node in focusNodes.values) {
+      node.onKeyEvent = (n, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final k = event.logicalKey;
+        if (k == LogicalKeyboardKey.select ||
+            k == LogicalKeyboardKey.enter ||
+            k == LogicalKeyboardKey.gameButtonA) {
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+          return KeyEventResult.handled;
+        }
+        if (k == LogicalKeyboardKey.arrowDown) {
+          n.unfocus();
+          nextButtonFocusNode.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (k == LogicalKeyboardKey.arrowUp) {
+          n.unfocus();
+          n.previousFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
+    }
     super.initState();
   }
 
@@ -232,6 +259,14 @@ class _SetupState extends State<Setup> {
     TextInputType keyboard,
   ) async {
     final tmp = TextEditingController(text: ctrl.text);
+    final focus = FocusNode();
+    // This box only opens the keyboard on a tap, so force it open when the
+    // popup field gets focus.
+    focus.addListener(() {
+      if (focus.hasFocus) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      }
+    });
     final s = S.of(context);
     final result = await showDialog<String>(
       context: context,
@@ -239,6 +274,7 @@ class _SetupState extends State<Setup> {
         title: Text(label),
         content: TextField(
           controller: tmp,
+          focusNode: focus,
           autofocus: true,
           autocorrect: false,
           keyboardType: keyboard,
@@ -258,6 +294,7 @@ class _SetupState extends State<Setup> {
       ),
     );
     tmp.dispose();
+    focus.dispose();
     if (result != null) {
       setState(() {
         ctrl.text = result.trim();
