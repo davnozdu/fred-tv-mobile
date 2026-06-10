@@ -111,15 +111,32 @@ Future<Map<String, String>> fetchEpgLogos(String epgUrl) async {
 // Kept in memory (45 min) and mirrored to disk (6 h) so re-opening the guide —
 // or a cold start — neither re-downloads nor re-parses. All heavy work
 // (download, gzip, parse, JSON encode/decode) happens in a background isolate.
-Map<String, List<EpgProgram>>? _allPrograms;
-String? _allProgramsUrl;
-DateTime? _allProgramsAt;
+// Small per-URL memory cache. The catalog uses epgUrl while the player may use
+// the archive EPG (when "extended archive" is on) — keeping both means they
+// don't evict each other and force a re-parse from disk on every refresh.
+final Map<String, Map<String, List<EpgProgram>>> _guideByUrl = {};
+final Map<String, DateTime> _guideAtByUrl = {};
+const _guideMaxUrls = 2;
 // In-flight parse, so the catalog and the guide asking at the same time share
 // a single download/parse instead of triggering two.
 Future<Map<String, List<EpgProgram>>>? _guideInflight;
 String? _guideInflightUrl;
 const _guideMemTtl = Duration(minutes: 45);
 const _guideDiskTtl = Duration(hours: 6);
+
+// Stores a freshly built guide, evicting the least-recently-stored URL so the
+// memory cache never holds more than [_guideMaxUrls] sources.
+void _storeGuide(String url, Map<String, List<EpgProgram>> guide) {
+  _guideByUrl[url] = guide;
+  _guideAtByUrl[url] = DateTime.now();
+  if (_guideByUrl.length > _guideMaxUrls) {
+    final oldest = _guideAtByUrl.entries
+        .reduce((a, b) => a.value.isBefore(b.value) ? a : b)
+        .key;
+    _guideByUrl.remove(oldest);
+    _guideAtByUrl.remove(oldest);
+  }
+}
 
 Future<File> _guideCacheFile(String url) async {
   final dir = await getTemporaryDirectory();
@@ -133,11 +150,12 @@ Future<Map<String, List<EpgProgram>>> fetchAllPrograms(String epgUrl) async {
   final url = epgUrl.trim();
   if (url.isEmpty) return {};
   // 1) Fresh in-memory result for this exact source.
-  if (_allPrograms != null &&
-      _allProgramsUrl == url &&
-      _allProgramsAt != null &&
-      DateTime.now().difference(_allProgramsAt!) < _guideMemTtl) {
-    return _allPrograms!;
+  final cached = _guideByUrl[url];
+  final cachedAt = _guideAtByUrl[url];
+  if (cached != null &&
+      cachedAt != null &&
+      DateTime.now().difference(cachedAt) < _guideMemTtl) {
+    return cached;
   }
   // Coalesce concurrent requests for the same source.
   if (_guideInflight != null && _guideInflightUrl == url) {
@@ -160,18 +178,14 @@ Future<Map<String, List<EpgProgram>>> _loadGuide(String url) async {
   // 2) Recent on-disk copy (decoded in a background isolate).
   final fromDisk = await _readGuideDisk(url);
   if (fromDisk != null) {
-    _allPrograms = fromDisk;
-    _allProgramsUrl = url;
-    _allProgramsAt = DateTime.now();
+    _storeGuide(url, fromDisk);
     return fromDisk;
   }
   // 3) Download + parse + persist — all inside the isolate.
   final cachePath = (await _guideCacheFile(url)).path;
   final data = await compute(_parseAllPrograms, {'url': url, 'cache': cachePath});
   final result = _buildGuide(data);
-  _allPrograms = result;
-  _allProgramsUrl = url;
-  _allProgramsAt = DateTime.now();
+  _storeGuide(url, result);
   return result;
 }
 
