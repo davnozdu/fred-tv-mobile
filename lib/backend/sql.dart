@@ -476,6 +476,16 @@ class Sql {
     return rowToSource(result);
   }
 
+  // Enables only the named source and disables the rest — used when a new
+  // playlist is added so the device switches straight to it.
+  static Future<void> activateOnlySource(String name) async {
+    var db = await DbFactory.db;
+    await db.execute(
+      'UPDATE sources SET enabled = (CASE WHEN name = ? THEN 1 ELSE 0 END)',
+      [name],
+    );
+  }
+
   static Future<void> setSourceEnabled(bool enabled, int sourceId) async {
     var db = await DbFactory.db;
     await db.execute('''

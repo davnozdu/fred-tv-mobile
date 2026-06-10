@@ -193,6 +193,12 @@ class _SetupState extends State<Setup> {
     if (!result.success) {
       return;
     }
+    // Switch to the just-added playlist so the device shows it right away
+    // (instead of merging every enabled source).
+    await Error.tryAsyncNoLoading(
+      () async => await Sql.activateOnlySource(formValues[Steps.name]!),
+      context,
+    );
     setState(() {
       step = Steps.finish;
     });
@@ -417,6 +423,15 @@ class _SetupState extends State<Setup> {
   }
 
   void navigateToHome() {
+    // Adding a playlist from inside the app (showAppBar): just return to the
+    // existing shell (the launcher menu / catalog root) — the new playlist is
+    // already active. Don't replace the whole stack, which destroyed the TV
+    // menu and left a stray catalog screen.
+    if (widget.showAppBar) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+    // First-launch setup: start the app.
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(
